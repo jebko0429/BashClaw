@@ -10,42 +10,42 @@ cmd_onboard() {
 
   # Step 1: Config initialization
   printf 'Step %d/%d: Configuration\n' "$step" "$total_steps"
-  printf '------------------------\n'
+  printf -- '------------------------\n'
   _onboard_config
   step=$((step + 1))
   printf '\n'
 
   # Step 2: API key setup
   printf 'Step %d/%d: API Key\n' "$step" "$total_steps"
-  printf '-----------------\n'
+  printf -- '-----------------\n'
   _onboard_api_key
   step=$((step + 1))
   printf '\n'
 
   # Step 3: Channel setup
   printf 'Step %d/%d: Channel Setup\n' "$step" "$total_steps"
-  printf '----------------------\n'
+  printf -- '----------------------\n'
   _onboard_channel
   step=$((step + 1))
   printf '\n'
 
   # Step 4: Gateway token
   printf 'Step %d/%d: Gateway\n' "$step" "$total_steps"
-  printf '-----------------\n'
+  printf -- '-----------------\n'
   _onboard_gateway
   step=$((step + 1))
   printf '\n'
 
   # Step 5: Engine selection
   printf 'Step %d/%d: Engine Selection\n' "$step" "$total_steps"
-  printf '--------------------------\n'
+  printf -- '--------------------------\n'
   _onboard_engine
   step=$((step + 1))
   printf '\n'
 
   # Step 6: Daemon installation
   printf 'Step %d/%d: Daemon Setup\n' "$step" "$total_steps"
-  printf '---------------------\n'
+  printf -- '---------------------\n'
   _onboard_daemon
   printf '\n'
 
