@@ -364,11 +364,11 @@ Different agents can use different engines:
 
 ## Providers
 
-The builtin engine supports 18 providers with data-driven routing. All configuration is in `lib/models.json` -- adding a provider is a JSON entry, no code changes.
+The builtin engine supports 21 providers with data-driven routing. All configuration is in `lib/models.json` -- adding a provider is a JSON entry, no code changes.
 
 ### Pre-configured Providers and Models
 
-BashClaw ships with 25+ pre-configured models. Set the API key and go:
+BashClaw ships with 30+ pre-configured models. Set the API key and go:
 
 | Provider | API Key Env | Pre-configured Models | API Format |
 |----------|------------|----------------------|------------|
@@ -378,6 +378,7 @@ BashClaw ships with 25+ pre-configured models. Set the API key and go:
 | **DeepSeek** | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner | OpenAI |
 | **Qwen** | `QWEN_API_KEY` | qwen-max, qwen-plus, qwq-plus | OpenAI |
 | **Zhipu** | `ZHIPU_API_KEY` | glm-5, glm-4-flash | OpenAI |
+| **BigModel Coding** | `BIGMODEL_API_KEY` | GLM-5, GLM-4.7, GLM-4.6, GLM-4.5-air | OpenAI |
 | **Moonshot** | `MOONSHOT_API_KEY` | kimi-k2.5 | OpenAI |
 | **MiniMax** | `MINIMAX_API_KEY` | MiniMax-M2.5, MiniMax-M2.1 | OpenAI |
 | **Xiaomi** | `XIAOMI_API_KEY` | mimo-v2-flash | Anthropic |
@@ -386,6 +387,8 @@ BashClaw ships with 25+ pre-configured models. Set the API key and go:
 | **Groq** | `GROQ_API_KEY` | llama-3.3-70b-versatile | OpenAI |
 | **xAI** | `XAI_API_KEY` | grok-3 | OpenAI |
 | **Mistral** | `MISTRAL_API_KEY` | mistral-large-latest | OpenAI |
+| **LongCat** | `LONGCAT_API_KEY` | LongCat-Flash-Chat, LongCat-Flash-Thinking, LongCat-Flash-Lite | OpenAI |
+| **Fyra** | `FYRA_API_KEY` | claude-opus-4.5 | OpenAI |
 | **OpenRouter** | `OPENROUTER_API_KEY` | any model via OpenRouter | OpenAI |
 | **Together** | `TOGETHER_API_KEY` | any model via Together | OpenAI |
 | **Ollama** | -- | any local model | OpenAI |
@@ -427,6 +430,10 @@ MODEL_ID=qwen-max bashclaw agent -m "hello"
 export ZHIPU_API_KEY="..."
 MODEL_ID=glm-5 bashclaw agent -m "hello"
 
+# BigModel Coding
+export BIGMODEL_API_KEY="..."
+MODEL_ID=bigmodel/GLM-5 bashclaw agent -m "hello"
+
 # Moonshot Kimi
 export MOONSHOT_API_KEY="sk-..."
 MODEL_ID=kimi-k2.5 bashclaw agent -m "hello"
@@ -462,6 +469,9 @@ MODEL_ID=kimi       # -> kimi-k2.5
 MODEL_ID=minimax    # -> MiniMax-M2.5
 MODEL_ID=grok       # -> grok-3
 MODEL_ID=mistral    # -> mistral-large-latest
+MODEL_ID=bigmodel   # -> GLM-5
+MODEL_ID=longcat    # -> LongCat-Flash-Chat
+MODEL_ID=fyra       # -> claude-opus-4.5
 ```
 
 </details>
@@ -807,6 +817,9 @@ Config file: `~/.bashclaw/bashclaw.json`
 | `DEEPSEEK_API_KEY` | DeepSeek |
 | `QWEN_API_KEY` | Qwen (DashScope) |
 | `ZHIPU_API_KEY` | Zhipu GLM |
+| `BIGMODEL_API_KEY` | BigModel coding endpoint |
+| `LONGCAT_API_KEY` | LongCat |
+| `FYRA_API_KEY` | Fyra |
 | `MOONSHOT_API_KEY` | Moonshot Kimi |
 | `MINIMAX_API_KEY` | MiniMax |
 | `MODEL_ID` | Override default model |

@@ -302,6 +302,74 @@
         }
       ]
     },
+    "bigmodel": {
+      "api": "openai",
+      "base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
+      "api_key_env": "BIGMODEL_API_KEY",
+      "models": [
+        {
+          "id": "GLM-5",
+          "name": "GLM-5 (Coding Plan)",
+          "reasoning": true,
+          "input": ["text", "image"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 128000,
+          "max_tokens": 4096,
+          "compat": { "thinking_format": "zai" },
+          "capabilities": {
+            "vision": true,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": true
+          }
+        },
+        {
+          "id": "GLM-4.7",
+          "name": "GLM-4.7 (Coding Plan)",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 128000,
+          "max_tokens": 4096,
+          "capabilities": {
+            "vision": false,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": true
+          }
+        },
+        {
+          "id": "GLM-4.6",
+          "name": "GLM-4.6 (Coding Plan)",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 128000,
+          "max_tokens": 4096,
+          "capabilities": {
+            "vision": false,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": true
+          }
+        },
+        {
+          "id": "GLM-4.5-air",
+          "name": "GLM-4.5 Air (Coding Plan)",
+          "reasoning": false,
+          "input": ["text"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 128000,
+          "max_tokens": 4096,
+          "capabilities": {
+            "vision": false,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": false
+          }
+        }
+      ]
+    },
     "moonshot": {
       "api": "openai",
       "base_url": "https://api.moonshot.ai/v1",
@@ -514,6 +582,95 @@
       "api_key_env": "TOGETHER_API_KEY",
       "models": []
     },
+    "longcat": {
+      "api": "openai",
+      "base_url": "https://api.longcat.chat/openai/v1",
+      "api_key_env": "LONGCAT_API_KEY",
+      "models": [
+        {
+          "id": "LongCat-Flash-Chat",
+          "name": "LongCat Flash Chat",
+          "reasoning": false,
+          "input": ["text"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 131072,
+          "max_tokens": 262144,
+          "capabilities": {
+            "vision": false,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": false
+          }
+        },
+        {
+          "id": "LongCat-Flash-Thinking",
+          "name": "LongCat Flash Thinking",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 131072,
+          "max_tokens": 262144,
+          "capabilities": {
+            "vision": false,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": true
+          }
+        },
+        {
+          "id": "LongCat-Flash-Thinking-2601",
+          "name": "LongCat Flash Thinking 2601",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 131072,
+          "max_tokens": 262144,
+          "capabilities": {
+            "vision": false,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": true
+          }
+        },
+        {
+          "id": "LongCat-Flash-Lite",
+          "name": "LongCat Flash Lite",
+          "reasoning": false,
+          "input": ["text"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 131072,
+          "max_tokens": 327680,
+          "capabilities": {
+            "vision": false,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": false
+          }
+        }
+      ]
+    },
+    "fyra": {
+      "api": "openai",
+      "base_url": "https://api.fyra.im/v1",
+      "api_key_env": "FYRA_API_KEY",
+      "models": [
+        {
+          "id": "claude-opus-4.5",
+          "name": "Claude Opus 4.5 (Fyra)",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 200000,
+          "max_tokens": 16384,
+          "capabilities": {
+            "vision": false,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": true
+          }
+        }
+      ]
+    },
     "openrouter": {
       "api": "openai",
       "base_url": "https://openrouter.ai/api/v1",
@@ -544,6 +701,9 @@
     "deepseek": "deepseek/deepseek-chat",
     "qwen": "qwen/qwen-max",
     "glm": "zhipu/glm-5",
+    "bigmodel": "bigmodel/GLM-5",
+    "longcat": "longcat/LongCat-Flash-Chat",
+    "fyra": "fyra/claude-opus-4.5",
     "kimi": "moonshot/kimi-k2.5",
     "minimax": "minimax/MiniMax-M2.5",
     "grok": "xai/grok-3",
