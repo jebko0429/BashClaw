@@ -681,7 +681,24 @@
       "api": "openai",
       "base_url": "http://localhost:11434/v1",
       "api_key_env": "OLLAMA_API_KEY",
-      "models": []
+      "models": [
+        {
+          "id": "glm-5:cloud",
+          "name": "GLM-5 Cloud (Ollama)",
+          "reasoning": true,
+          "input": ["text", "image"],
+          "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
+          "context_window": 128000,
+          "max_tokens": 4096,
+          "compat": { "thinking_format": "zai" },
+          "capabilities": {
+            "vision": true,
+            "streaming": true,
+            "tools": true,
+            "extended_thinking": true
+          }
+        }
+      ]
     },
     "vllm": {
       "api": "openai",
@@ -704,6 +721,7 @@
     "bigmodel": "bigmodel/GLM-5",
     "longcat": "longcat/LongCat-Flash-Chat",
     "fyra": "fyra/claude-opus-4.5",
+    "ollama": "ollama/glm-5:cloud",
     "kimi": "moonshot/kimi-k2.5",
     "minimax": "minimax/MiniMax-M2.5",
     "grok": "xai/grok-3",

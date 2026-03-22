@@ -85,6 +85,12 @@ result="$(agent_resolve_provider "glm-5")"
 assert_eq "$result" "zhipu"
 teardown_test_env
 
+test_start "agent_resolve_provider returns ollama for glm-5:cloud"
+setup_test_env
+result="$(agent_resolve_provider "glm-5:cloud")"
+assert_eq "$result" "ollama"
+teardown_test_env
+
 test_start "agent_resolve_provider returns anthropic for unknown models"
 setup_test_env
 result="$(agent_resolve_provider "unknown-model-xyz")"
@@ -189,6 +195,43 @@ result="$(agent_build_messages "$f" "first message" 50)"
 assert_json_valid "$result"
 length="$(printf '%s' "$result" | jq 'length')"
 assert_eq "$length" "1"
+teardown_test_env
+
+test_start "openai message conversion flattens tool blocks"
+setup_test_env
+messages='[
+  {"role":"assistant","content":[
+    {"type":"text","text":"Working on it"},
+    {"type":"tool_use","id":"tool_123","name":"web_search","input":{"q":"bashclaw"}}
+  ]},
+  {"role":"user","content":[
+    {"type":"tool_result","tool_use_id":"tool_123","content":"{\"ok\":true}","is_error":false}
+  ]}
+]'
+result="$(_openai_convert_messages "system prompt" "$messages")"
+assert_json_valid "$result"
+assert_eq "$(printf '%s' "$result" | jq -r '.[0].role')" "system"
+assert_eq "$(printf '%s' "$result" | jq -r '.[1].role')" "assistant"
+assert_eq "$(printf '%s' "$result" | jq -r '.[1].tool_calls[0].id')" "tool_123"
+assert_eq "$(printf '%s' "$result" | jq -r '.[1].tool_calls[0].function.name')" "web_search"
+assert_eq "$(printf '%s' "$result" | jq -r '.[2].role')" "tool"
+assert_eq "$(printf '%s' "$result" | jq -r '.[2].tool_call_id')" "tool_123"
+assert_eq "$(printf '%s' "$result" | jq -r '.[2].content')" '{"ok":true}'
+teardown_test_env
+
+test_start "agent_resolve_model maps ollama alias to glm-5:cloud"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{
+  "agents": {"defaults": {}, "list": []}
+}
+EOF
+_CONFIG_CACHE=""
+config_load
+export MODEL_ID="ollama"
+result="$(agent_resolve_model "main")"
+assert_eq "$result" "glm-5:cloud"
+unset MODEL_ID
 teardown_test_env
 
 # ---- agent_build_tools_spec ----

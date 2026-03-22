@@ -196,6 +196,83 @@ agent_call_anthropic() {
 # Handles: openai, deepseek, qwen, zhipu, moonshot, minimax, groq, xai, mistral,
 # nvidia, together, openrouter, ollama, vllm, qianfan, and any provider with api="openai"
 
+_openai_convert_messages() {
+  local system_prompt="$1"
+  local messages="$2"
+
+  printf '%s' "$messages" | jq --arg sys "$system_prompt" '
+    [
+      {role: "system", content: $sys},
+      (
+        .[] |
+        if (.content | type) == "string" then
+          {role: .role, content: .content}
+        elif (.content | type) == "array" then
+          if .role == "assistant" then
+            (
+              [ .content[]? | select(.type == "text") | .text ] | join("")
+            ) as $text
+            | (
+              [ .content[]? | select(.type == "tool_use") | {
+                id: .id,
+                type: "function",
+                function: {
+                  name: .name,
+                  arguments: (.input | tojson)
+                }
+              } ]
+            ) as $tool_calls
+            | if (($text | length) > 0) or (($tool_calls | length) > 0) then
+                {
+                  role: "assistant",
+                  content: (if ($text | length) > 0 then $text else null end),
+                  tool_calls: $tool_calls
+                }
+                | if (.tool_calls | length) == 0 then del(.tool_calls) else . end
+              else
+                empty
+              end
+          elif .role == "user" then
+            (
+              [ .content[]? | select(.type == "text") | .text ] | join("")
+            ) as $text
+            | [
+                (if ($text | length) > 0 then
+                  {role: "user", content: $text}
+                else
+                  empty
+                end),
+                (
+                  .content[]?
+                  | select(.type == "tool_result")
+                  | {
+                      role: "tool",
+                      tool_call_id: .tool_use_id,
+                      content: (
+                        if (.content | type) == "string" then
+                          .content
+                        else
+                          (.content | tojson)
+                        end
+                      )
+                    }
+                )
+              ][]
+          else
+            {
+              role: .role,
+              content: (
+                [ .content[]? | select(.type == "text") | .text ] | join("")
+              )
+            }
+          end
+        else
+          {role: .role, content: (.content | tostring)}
+        end
+      )
+    ]'
+}
+
 agent_call_openai() {
   local model="$1"
   local system_prompt="$2"
@@ -230,8 +307,7 @@ agent_call_openai() {
   fi
 
   local oai_messages
-  oai_messages="$(printf '%s' "$messages" | jq --arg sys "$system_prompt" \
-    '[{role: "system", content: $sys}] + .')"
+  oai_messages="$(_openai_convert_messages "$system_prompt" "$messages")"
 
   local oai_tools=""
   if [[ -n "$tools_json" && "$tools_json" != "[]" ]]; then
