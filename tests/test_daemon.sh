@@ -32,6 +32,20 @@ case "$result" in
 esac
 teardown_test_env
 
+test_start "platform_termux_service_strategy returns valid value"
+setup_test_env
+_source_libs
+result="$(platform_termux_service_strategy 2>/dev/null)"
+case "$result" in
+  termux-boot|crontab|none)
+    _test_pass
+    ;;
+  *)
+    _test_fail "unexpected service strategy: $result"
+    ;;
+esac
+teardown_test_env
+
 # ---- daemon_install creates correct file for current OS ----
 
 test_start "daemon_install creates service file"

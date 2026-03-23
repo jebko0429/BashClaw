@@ -14,12 +14,8 @@ _daemon_log_file() {
 }
 
 _detect_init_system() {
-  if [[ -d "/data/data/com.termux" ]]; then
-    if [[ -d "$HOME/.termux/boot" ]] || is_command_available termux-reload-settings; then
-      printf 'termux-boot'
-      return
-    fi
-    printf 'crontab'
+  if platform_is_termux; then
+    platform_termux_service_strategy
     return
   fi
 
@@ -185,13 +181,17 @@ _daemon_install_termux() {
   local bashclaw_bin="$1"
   local log_file="${BASHCLAW_STATE_DIR:?}/logs/watchdog.log"
 
-  local boot_dir="$HOME/.termux/boot"
-  local boot_script="${boot_dir}/bashclaw-start.sh"
+  local boot_dir
+  local boot_script
+  local termux_prefix
+  boot_dir="$(platform_termux_boot_dir)"
+  boot_script="$(platform_termux_boot_script)"
+  termux_prefix="$(platform_termux_prefix)"
 
   ensure_dir "$boot_dir"
 
   cat > "$boot_script" <<BOOTEOF
-#!/data/data/com.termux/files/usr/bin/bash
+#!${termux_prefix}/bin/bash
 export BASHCLAW_STATE_DIR="${BASHCLAW_STATE_DIR}"
 bash "${bashclaw_bin}" watchdog --daemon >> "${log_file}" 2>&1 &
 BOOTEOF
@@ -239,7 +239,8 @@ daemon_uninstall() {
       fi
       ;;
     termux-boot)
-      local boot_script="$HOME/.termux/boot/bashclaw-start.sh"
+      local boot_script
+      boot_script="$(platform_termux_boot_script)"
       if [[ -f "$boot_script" ]]; then
         rm -f "$boot_script"
         printf 'Termux boot script removed.\n'
@@ -262,6 +263,9 @@ daemon_status() {
   local init_sys
   init_sys="$(_detect_init_system)"
   printf 'Init system: %s\n' "$init_sys"
+  if platform_is_termux; then
+    printf 'Boot dir:    %s\n' "$(platform_termux_boot_dir)"
+  fi
 
   if [[ ! -f "$pid_file" ]]; then
     printf 'Status:      stopped (no PID file)\n'

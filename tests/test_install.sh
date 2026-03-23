@@ -124,10 +124,38 @@ setup_test_env
 result="$(
   _source_install_functions
   _INSTALL_DIR=""
-  _parse_args --prefix /tmp/test
+  _parse_args --prefix "${_TEST_TMPDIR}/test"
   printf '%s' "$_INSTALL_DIR"
 )"
-assert_eq "$result" "/tmp/test"
+assert_eq "$result" "${_TEST_TMPDIR}/test"
+teardown_test_env
+
+test_start "_installer_tmp_base returns a writable directory"
+setup_test_env
+result="$(
+  export HOME="$_TEST_TMPDIR"
+  export TMPDIR="${_TEST_TMPDIR}/tmp-base"
+  mkdir -p "$TMPDIR"
+  _source_install_functions
+  _installer_tmp_base
+)"
+if [[ -d "$result" && -w "$result" ]]; then
+  _test_pass
+else
+  _test_fail "installer tmp base not writable: $result"
+fi
+teardown_test_env
+
+test_start "_installer_mktemp creates files in resolved temp base"
+setup_test_env
+result="$(
+  export HOME="$_TEST_TMPDIR"
+  export TMPDIR="${_TEST_TMPDIR}/tmp-base"
+  mkdir -p "$TMPDIR"
+  _source_install_functions
+  _installer_mktemp "install-test" ".txt"
+)"
+assert_contains "$result" "${_TEST_TMPDIR}/tmp-base/"
 teardown_test_env
 
 # ---- _parse_args --no-path sets _NO_PATH ----

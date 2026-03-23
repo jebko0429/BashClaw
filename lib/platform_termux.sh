@@ -2,7 +2,13 @@
 # Termux platform helpers
 
 platform_is_termux() {
-  [[ -n "${TERMUX_VERSION:-}" ]] || [[ -d "/data/data/com.termux/files" ]] || [[ "${PREFIX:-}" == *"/com.termux/files/usr" ]]
+  [[ -n "${TERMUX_VERSION:-}" ]] ||
+  [[ -n "${TERMUX_APP_PID:-}" ]] ||
+  [[ -d "/data/data/com.termux/files" ]] ||
+  [[ "${PREFIX:-}" == *"/com.termux/files/usr" ]] ||
+  [[ "${PREFIX:-}" == *"/files/usr" && -n "${HOME:-}" && "${HOME:-}" == *"/files/home"* ]] ||
+  is_command_available pkg ||
+  is_command_available termux-info
 }
 
 platform_termux_prefix() {
@@ -73,6 +79,24 @@ platform_termux_boot_dir() {
   local home
   home="$(platform_termux_home)"
   printf '%s' "${home}/.termux/boot"
+}
+
+platform_termux_boot_ready() {
+  [[ -d "$(platform_termux_boot_dir)" ]]
+}
+
+platform_termux_boot_script() {
+  printf '%s/bashclaw-start.sh' "$(platform_termux_boot_dir)"
+}
+
+platform_termux_service_strategy() {
+  if ! platform_is_termux; then
+    printf 'none'
+  elif platform_termux_boot_ready || is_command_available termux-reload-settings; then
+    printf 'termux-boot'
+  else
+    printf 'crontab'
+  fi
 }
 
 platform_termux_api_available() {

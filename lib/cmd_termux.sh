@@ -35,6 +35,9 @@ cmd_termux_status() {
   printf 'State dir:      %s\n' "$BASHCLAW_STATE_DIR"
   printf 'Shared storage: %s\n' "$(platform_termux_shared_storage)"
   printf 'Downloads:      %s\n' "$(platform_termux_downloads_dir)"
+  printf 'Boot dir:       %s\n' "$(platform_termux_boot_dir)"
+  printf 'Boot ready:     %s\n' "$(_termux_bool "$(platform_termux_boot_ready && printf yes || printf no)")"
+  printf 'Service mode:   %s\n' "$(platform_termux_service_strategy)"
 }
 
 cmd_termux_paths() {
@@ -116,6 +119,8 @@ cmd_termux_doctor() {
   else
     printf '[INFO] Termux boot directory missing: %s\n' "$boot_dir"
   fi
+
+  printf '[INFO] Recommended service strategy: %s\n' "$(platform_termux_service_strategy)"
 
   printf '\n  --- Package Tooling ---\n'
   if is_command_available pkg; then

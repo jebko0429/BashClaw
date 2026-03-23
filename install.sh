@@ -91,6 +91,26 @@ _is_command_available() {
   command -v "$1" &>/dev/null
 }
 
+_installer_tmp_base() {
+  local candidate
+  for candidate in "${TMPDIR:-}" "${HOME}/.tmp" "${PREFIX:-}/tmp" "/data/local/tmp" "${PWD}/.tmp" "/tmp"; do
+    [[ -z "$candidate" ]] && continue
+    if mkdir -p "$candidate" 2>/dev/null; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+_installer_mktemp() {
+  local prefix="${1:-bashclaw_install}"
+  local suffix="${2:-}"
+  local base
+  base="$(_installer_tmp_base)" || return 1
+  mktemp "${base}/${prefix}.XXXXXX${suffix}" 2>/dev/null
+}
+
 _normalize_github_repo_url() {
   local url="${1:-}"
   if [[ -z "$url" ]]; then
@@ -287,7 +307,7 @@ _download_bashclaw() {
   else
     _info "Downloading bashclaw tarball..."
     local tmp_tar
-    tmp_tar="$(mktemp -t bashclaw_install.XXXXXX.tar.gz 2>/dev/null || mktemp /tmp/bashclaw_install.XXXXXX.tar.gz)"
+    tmp_tar="$(_installer_mktemp "bashclaw_install" ".tar.gz")"
     curl -fsSL "$_INSTALL_SOURCE_TARBALL" -o "$tmp_tar"
     mkdir -p "$install_dir"
     tar xzf "$tmp_tar" -C "$install_dir" --strip-components=1
@@ -429,7 +449,7 @@ _uninstall() {
   for rc in "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.profile"; do
     if [[ -f "$rc" ]] && grep -qF "# bashclaw" "$rc" 2>/dev/null; then
       local tmp
-      tmp="$(mktemp)"
+      tmp="$(_installer_mktemp "bashclaw_uninstall")"
       awk '/^# bashclaw$/{skip=1; next} skip && /^export PATH=.*bashclaw/{skip=0; next} skip{skip=0; print; next} {print}' "$rc" > "$tmp"
       mv "$tmp" "$rc"
       _info "Cleaned PATH from $rc"
