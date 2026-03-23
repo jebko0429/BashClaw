@@ -34,10 +34,28 @@
       }
       return fetch(API.base + path, opts)
         .then(function(r) {
-          if (!r.ok) {
-            return r.json().then(function(e) { throw e; });
-          }
-          return r.json();
+          return r.text().then(function(text) {
+            var data = null;
+            if (text && text.length > 0) {
+              try {
+                data = JSON.parse(text);
+              } catch (e) {
+                var parseErr = {
+                  error: 'invalid JSON response',
+                  message: e && e.message ? e.message : 'parse failed',
+                  raw: text,
+                  status: r.status
+                };
+                throw parseErr;
+              }
+            } else {
+              data = {};
+            }
+            if (!r.ok) {
+              throw data;
+            }
+            return data;
+          });
         });
     },
 
