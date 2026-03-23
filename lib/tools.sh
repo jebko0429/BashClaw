@@ -24,7 +24,7 @@ tools_resolve_profile() {
       echo "web_fetch web_search memory session_status message agent_message agents_list"
       ;;
     termux-operator)
-      echo "memory read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_recipe"
+      echo "memory read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe"
       ;;
     full|"")
       _tool_list
@@ -61,6 +61,12 @@ _tool_handler() {
     termux_telephony) echo "tool_termux_telephony" ;;
     termux_camera)  echo "tool_termux_camera" ;;
     termux_open)    echo "tool_termux_open" ;;
+    termux_sensor)   echo "tool_termux_sensor" ;;
+    termux_brightness) echo "tool_termux_brightness" ;;
+    termux_volume)   echo "tool_termux_volume" ;;
+    termux_torch)    echo "tool_termux_torch" ;;
+    termux_vibrate)  echo "tool_termux_vibrate" ;;
+    termux_wakelock) echo "tool_termux_wakelock" ;;
     termux_recipe)  echo "tool_termux_recipe" ;;
     spawn)          echo "tool_spawn" ;;
     spawn_status)   echo "tool_spawn_status" ;;
@@ -76,7 +82,7 @@ _tool_handler() {
 }
 
 _tool_list() {
-  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_recipe spawn spawn_status"
+  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe spawn spawn_status"
 }
 
 # Tool optional flag registry (tools that default to disabled unless explicitly allowed).
@@ -346,6 +352,23 @@ Available tools:
 22. termux_open - Open or share a URL, file, or text through Android intents.
     Parameters: target (string, required), action (open|share, optional)
 
+22. termux_sensor - Read device sensors (accelerometer, gyroscope, light, etc.).
+   Parameters: sensor (string, optional), delay (number, optional)
+
+23. termux_brightness - Get or set screen brightness.
+   Parameters: brightness (number 0-255 or "auto", optional)
+
+24. termux_volume - Get or set media volume.
+   Parameters: stream (string, optional), volume (number, optional)
+
+25. termux_torch - Control device flashlight.
+   Parameters: state (on|off|toggle, optional)
+
+26. termux_vibrate - Trigger device vibration.
+   Parameters: duration (number, optional), force (boolean, optional)
+
+27. termux_wakelock - Control device wake lock.
+   Parameters: action (acquire|release|status, optional)
 23. termux_recipe - Run or inspect a built-in Termux workflow recipe.
     Parameters: action (list|describe|run, optional), recipe (battery|downloads|clipboard|connectivity, optional), limit (number, optional), notify (boolean, optional)
 
@@ -434,6 +457,12 @@ ${idx}. ${desc}"
   _bridge_tool_desc "termux_open" "termux_open - Open or share text, files, or URLs via Android intents.
    Params: --target <string> --action <open|share>"
 
+  _bridge_tool_desc "termux_sensor" "termux_sensor - Read device sensors (accelerometer, gyroscope, light, etc.). Params: sensor (string, optional), delay (number, optional)"
+  _bridge_tool_desc "termux_brightness" "termux_brightness - Get or set screen brightness. Params: brightness (number 0-255 or "auto", optional)"
+  _bridge_tool_desc "termux_volume" "termux_volume - Get or set media volume. Params: stream (string, optional), volume (number, optional)"
+  _bridge_tool_desc "termux_torch" "termux_torch - Control device flashlight. Params: state (on|off|toggle, optional)"
+  _bridge_tool_desc "termux_vibrate" "termux_vibrate - Trigger device vibration. Params: duration (number, optional), force (boolean, optional)"
+  _bridge_tool_desc "termux_wakelock" "termux_wakelock - Control device wake lock. Params: action (acquire|release|status, optional)"
   _bridge_tool_desc "termux_recipe" "termux_recipe - Run or inspect a built-in Termux workflow recipe.
    Params: --action <list|describe|run> --recipe <battery|downloads|clipboard|connectivity> --limit <number> --notify <true|false>"
 
@@ -2063,4 +2092,239 @@ _ssrf_is_blocked() {
   fi
 
   return 1
+}
+#!/usr/bin/env bash
+# Additional Termux device-state tools
+# Source this file or append to tools.sh
+
+# ---- Tool: termux_sensor ----
+
+tool_termux_sensor() {
+  local input="${1:-{}}"
+  require_command jq "termux_sensor tool requires jq"
+
+  local sensor delay
+  sensor="$(printf '%s' "$input" | jq -r '.sensor // empty' 2>/dev/null)"
+  delay="$(printf '%s' "$input" | jq -r '.delay // 1000' 2>/dev/null)"
+
+  if ! platform_termux_api_available termux-sensor; then
+    printf '{"error": "termux-sensor not available"}'
+    return 1
+  fi
+
+  local args=("-d" "$delay")
+  if [[ -n "$sensor" ]]; then
+    args+=("-s" "$sensor")
+  fi
+
+  local result
+  result="$(termux-sensor "${args[@]}" 2>/dev/null)" || {
+    printf '{"error": "termux-sensor failed"}'
+    return 1
+  }
+
+  if printf '%s' "$result" | jq empty 2>/dev/null; then
+    printf '%s' "$result"
+  else
+    jq -nc --arg raw "$result" '{"raw": $raw}'
+  fi
+}
+
+# ---- Tool: termux_brightness ----
+
+tool_termux_brightness() {
+  local input="${1:-{}}"
+  require_command jq "termux_brightness tool requires jq"
+
+  local brightness
+  brightness="$(printf '%s' "$input" | jq -r '.brightness // empty' 2>/dev/null)"
+
+  if ! platform_termux_api_available termux-brightness; then
+    printf '{"error": "termux-brightness not available"}'
+    return 1
+  fi
+
+  local result
+  if [[ -n "$brightness" ]]; then
+    # Set brightness (0-255 or auto)
+    if [[ "$brightness" == "auto" ]]; then
+      result="$(termux-brightness auto 2>/dev/null)" || {
+        printf '{"error": "termux-brightness failed"}'
+        return 1
+      }
+    else
+      result="$(termux-brightness "$brightness" 2>/dev/null)" || {
+        printf '{"error": "termux-brightness failed"}'
+        return 1
+      }
+    fi
+    jq -nc --arg b "$brightness" '{"ok": true, "brightness": $b}'
+  else
+    # Just execute to get current state (some devices report back)
+    result="$(termux-brightness 2>/dev/null)" || {
+      # If no arg fails, try to get current from settings
+      local current
+      current="$(settings get system screen_brightness 2>/dev/null || printf 'unknown')"
+      jq -nc --arg c "$current" '{"brightness": $c}'
+      return 0
+    }
+    if printf '%s' "$result" | jq empty 2>/dev/null; then
+      printf '%s' "$result"
+    else
+      jq -nc --arg raw "$result" '{"raw": $raw}'
+    fi
+  fi
+}
+
+# ---- Tool: termux_volume ----
+
+tool_termux_volume() {
+  local input="${1:-{}}"
+  require_command jq "termux_volume tool requires jq"
+
+  local stream volume
+  stream="$(printf '%s' "$input" | jq -r '.stream // "notification"' 2>/dev/null)"
+  volume="$(printf '%s' "$input" | jq -r '.volume // empty' 2>/dev/null)"
+
+  if ! platform_termux_api_available termux-volume; then
+    printf '{"error": "termux-volume not available"}'
+    return 1
+  fi
+
+  local result
+  if [[ -n "$volume" ]]; then
+    # Set volume
+    result="$(termux-volume "$stream" "$volume" 2>/dev/null)" || {
+      printf '{"error": "termux-volume failed"}'
+      return 1
+    }
+    jq -nc --arg s "$stream" --arg v "$volume" '{"ok": true, "stream": $s, "volume": $v}'
+  else
+    # Get current volume (termux-volume without args shows all)
+    result="$(termux-volume 2>/dev/null)" || {
+      printf '{"error": "termux-volume failed"}'
+      return 1
+    }
+    if printf '%s' "$result" | jq empty 2>/dev/null; then
+      printf '%s' "$result"
+    else
+      jq -nc --arg raw "$result" '{"raw": $raw}'
+    fi
+  fi
+}
+
+# ---- Tool: termux_torch ----
+
+tool_termux_torch() {
+  local input="${1:-{}}"
+  require_command jq "termux_torch tool requires jq"
+
+  local state
+  state="$(printf '%s' "$input" | jq -r '.state // "toggle"' 2>/dev/null)"
+
+  if ! platform_termux_api_available termux-torch; then
+    printf '{"error": "termux-torch not available"}'
+    return 1
+  fi
+
+  local args=()
+  case "$state" in
+    on)
+      args=("ON")
+      ;;
+    off)
+      args=("OFF")
+      ;;
+    toggle|"")
+      args=("toggle")
+      ;;
+    *)
+      printf '{"error": "state must be on, off, or toggle"}'
+      return 1
+      ;;
+  esac
+
+  termux-torch "${args[@]}" >/dev/null 2>&1 || {
+    printf '{"error": "termux-torch failed"}'
+    return 1
+  }
+
+  jq -nc --arg s "$state" '{"ok": true, "state": $s}'
+}
+
+# ---- Tool: termux_vibrate ----
+
+tool_termux_vibrate() {
+  local input="${1:-{}}"
+  require_command jq "termux_vibrate tool requires jq"
+
+  local duration force
+  duration="$(printf '%s' "$input" | jq -r '.duration // 200' 2>/dev/null)"
+  force="$(printf '%s' "$input" | jq -r '.force // false' 2>/dev/null)"
+
+  if ! platform_termux_api_available termux-vibrate; then
+    printf '{"error": "termux-vibrate not available"}'
+    return 1
+  fi
+
+  local args=("-d" "$duration")
+  if [[ "$force" == "true" ]]; then
+    args+=("-f")
+  fi
+
+  termux-vibrate "${args[@]}" >/dev/null 2>&1 || {
+    printf '{"error": "termux-vibrate failed"}'
+    return 1
+  }
+
+  jq -nc --arg d "$duration" --arg f "$force" '{"ok": true, "duration_ms": $d, "force": ($f == "true")}'
+}
+
+# ---- Tool: termux_wakelock ----
+
+tool_termux_wakelock() {
+  local input="${1:-{}}"
+  require_command jq "termux_wakelock tool requires jq"
+
+  local action
+  action="$(printf '%s' "$input" | jq -r '.action // "status"' 2>/dev/null)"
+
+  case "$action" in
+    acquire|lock)
+      if ! platform_termux_api_available termux-wake-lock; then
+        printf '{"error": "termux-wake-lock not available"}'
+        return 1
+      fi
+      termux-wake-lock >/dev/null 2>&1 || {
+        printf '{"error": "termux-wake-lock failed"}'
+        return 1
+      }
+      jq -nc '{"ok": true, "action": "acquired", "message": "Wake lock acquired, device will stay awake"}'
+      ;;
+    release|unlock)
+      if ! platform_termux_api_available termux-wake-unlock; then
+        printf '{"error": "termux-wake-unlock not available"}'
+        return 1
+      fi
+      termux-wake-unlock >/dev/null 2>&1 || {
+        printf '{"error": "termux-wake-unlock failed"}'
+        return 1
+      }
+      jq -nc '{"ok": true, "action": "released", "message": "Wake lock released"}'
+      ;;
+    status|"")
+      # Check if wakelock is active by looking at /proc/wakelocks or using dumpsys
+      local wakelock_status
+      if command -v dumpsys >/dev/null 2>&1; then
+        wakelock_status="$(dumpsys power 2>/dev/null | grep -i "wake lock" | head -1 || printf 'unknown')"
+      else
+        wakelock_status="unknown"
+      fi
+      jq -nc --arg s "$wakelock_status" '{"status": $s}'
+      ;;
+    *)
+      printf '{"error": "action must be acquire, release, or status"}'
+      return 1
+      ;;
+  esac
 }
