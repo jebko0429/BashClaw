@@ -8,7 +8,7 @@ _api_call_with_retry() {
   local max_retries="${1:-3}"
   local url="$2"
   local headers_file="$3"
-  local body="$4"
+  local body_file="$4"
   local response_file="$5"
   local provider_label="${6:-API}"
 
@@ -20,7 +20,7 @@ _api_call_with_retry() {
     http_code="$(curl -sS --max-time 120 \
       -o "$response_file" -w '%{http_code}' \
       -H @"$headers_file" \
-      -d "$body" \
+      --data-binary "@$body_file" \
       "$url" 2>/dev/null)" || http_code="000"
 
     case "$http_code" in
@@ -48,6 +48,14 @@ _api_write_headers() {
   for header in "$@"; do
     printf '%s\n' "$header" >> "$headers_file"
   done
+}
+
+_api_json_to_file() {
+  local output_file="$1"
+  local filter="$2"
+  shift 2
+
+  jq "$@" "$filter" > "$output_file"
 }
 
 _api_check_response() {
@@ -134,37 +142,44 @@ agent_call_anthropic() {
 
   local api_url="${api_base}/messages"
 
-  local body
+  local body_file messages_file tools_file
+  body_file="$(tmpfile "anthropic_body")"
+  messages_file="$(tmpfile "anthropic_messages")"
+  tools_file=""
+  printf '%s' "$messages" > "$messages_file"
+
   if [[ -n "$tools_json" && "$tools_json" != "[]" ]]; then
-    body="$(jq -nc \
-      --arg model "$model" \
-      --arg system "$system_prompt" \
-      --argjson messages "$messages" \
-      --argjson max_tokens "$max_tokens" \
-      --argjson temp "$temperature" \
-      --argjson tools "$tools_json" \
-      '{
+    tools_file="$(tmpfile "anthropic_tools")"
+    printf '%s' "$tools_json" > "$tools_file"
+    _api_json_to_file "$body_file" '
+      {
         model: $model,
         system: $system,
-        messages: $messages,
+        messages: $messages[0],
         max_tokens: $max_tokens,
         temperature: $temp,
-        tools: $tools
-      }')"
-  else
-    body="$(jq -nc \
+        tools: $tools[0]
+      }' -nc \
       --arg model "$model" \
       --arg system "$system_prompt" \
-      --argjson messages "$messages" \
       --argjson max_tokens "$max_tokens" \
       --argjson temp "$temperature" \
-      '{
+      --slurpfile messages "$messages_file" \
+      --slurpfile tools "$tools_file"
+  else
+    _api_json_to_file "$body_file" '
+      {
         model: $model,
         system: $system,
-        messages: $messages,
+        messages: $messages[0],
         max_tokens: $max_tokens,
         temperature: $temp
-      }')"
+      }' -nc \
+      --arg model "$model" \
+      --arg system "$system_prompt" \
+      --argjson max_tokens "$max_tokens" \
+      --argjson temp "$temperature" \
+      --slurpfile messages "$messages_file"
   fi
 
   log_debug "Anthropic API call: model=$model provider=$provider url=$api_url"
@@ -179,11 +194,12 @@ agent_call_anthropic() {
     "content-type: application/json"
 
   local http_code
-  http_code="$(_api_call_with_retry 3 "$api_url" "$headers_file" "$body" "$response_file" "Anthropic")" || true
+  http_code="$(_api_call_with_retry 3 "$api_url" "$headers_file" "$body_file" "$response_file" "Anthropic")" || true
   local response
   response="$(cat "$response_file" 2>/dev/null)"
 
-  rm -f "$response_file" "$headers_file"
+  rm -f "$response_file" "$headers_file" "$body_file" "$messages_file"
+  [[ -n "$tools_file" ]] && rm -f "$tools_file"
 
   if ! _api_check_response "$response" "$http_code" "Anthropic"; then
     return 1
@@ -321,35 +337,42 @@ agent_call_openai() {
     }]')"
   fi
 
-  local body
+  local body_file messages_file tools_file
+  body_file="$(tmpfile "openai_body")"
+  messages_file="$(tmpfile "openai_messages")"
+  tools_file=""
+  printf '%s' "$oai_messages" > "$messages_file"
+
   if [[ -n "$oai_tools" && "$oai_tools" != "[]" ]]; then
-    body="$(jq -nc \
-      --arg model "$model" \
-      --argjson messages "$oai_messages" \
-      --argjson max_tokens "$max_tokens" \
-      --argjson temp "$temperature" \
-      --argjson tools "$oai_tools" \
-      --arg mtf "$max_tokens_field" \
-      '{
+    tools_file="$(tmpfile "openai_tools")"
+    printf '%s' "$oai_tools" > "$tools_file"
+    _api_json_to_file "$body_file" '
+      {
         model: $model,
-        messages: $messages,
+        messages: $messages[0],
         ($mtf): $max_tokens,
         temperature: $temp,
-        tools: $tools
-      }')"
-  else
-    body="$(jq -nc \
+        tools: $tools[0]
+      }' -nc \
       --arg model "$model" \
-      --argjson messages "$oai_messages" \
       --argjson max_tokens "$max_tokens" \
       --argjson temp "$temperature" \
       --arg mtf "$max_tokens_field" \
-      '{
+      --slurpfile messages "$messages_file" \
+      --slurpfile tools "$tools_file"
+  else
+    _api_json_to_file "$body_file" '
+      {
         model: $model,
-        messages: $messages,
+        messages: $messages[0],
         ($mtf): $max_tokens,
         temperature: $temp
-      }')"
+      }' -nc \
+      --arg model "$model" \
+      --argjson max_tokens "$max_tokens" \
+      --argjson temp "$temperature" \
+      --arg mtf "$max_tokens_field" \
+      --slurpfile messages "$messages_file"
   fi
 
   log_debug "OpenAI API call: model=$model provider=$provider url=$api_url"
@@ -363,11 +386,12 @@ agent_call_openai() {
     "Content-Type: application/json"
 
   local http_code
-  http_code="$(_api_call_with_retry 3 "$api_url" "$headers_file" "$body" "$response_file" "OpenAI")" || true
+  http_code="$(_api_call_with_retry 3 "$api_url" "$headers_file" "$body_file" "$response_file" "OpenAI")" || true
   local response
   response="$(cat "$response_file" 2>/dev/null)"
 
-  rm -f "$response_file" "$headers_file"
+  rm -f "$response_file" "$headers_file" "$body_file" "$messages_file"
+  [[ -n "$tools_file" ]] && rm -f "$tools_file"
 
   if ! _api_check_response "$response" "$http_code" "OpenAI"; then
     return 1
@@ -479,31 +503,38 @@ agent_call_google() {
     }]')"
   fi
 
-  local body
+  local body_file contents_file tools_file
+  body_file="$(tmpfile "google_body")"
+  contents_file="$(tmpfile "google_contents")"
+  tools_file=""
+  printf '%s' "$gemini_contents" > "$contents_file"
+
   if [[ -n "$gemini_tools" && "$gemini_tools" != "[]" ]]; then
-    body="$(jq -nc \
-      --arg sys "$system_prompt" \
-      --argjson contents "$gemini_contents" \
-      --argjson max_tokens "$max_tokens" \
-      --argjson temp "$temperature" \
-      --argjson tools "$gemini_tools" \
-      '{
+    tools_file="$(tmpfile "google_tools")"
+    printf '%s' "$gemini_tools" > "$tools_file"
+    _api_json_to_file "$body_file" '
+      {
         system_instruction: {parts: [{text: $sys}]},
-        contents: $contents,
+        contents: $contents[0],
         generationConfig: {maxOutputTokens: $max_tokens, temperature: $temp},
-        tools: $tools
-      }')"
-  else
-    body="$(jq -nc \
+        tools: $tools[0]
+      }' -nc \
       --arg sys "$system_prompt" \
-      --argjson contents "$gemini_contents" \
       --argjson max_tokens "$max_tokens" \
       --argjson temp "$temperature" \
-      '{
+      --slurpfile contents "$contents_file" \
+      --slurpfile tools "$tools_file"
+  else
+    _api_json_to_file "$body_file" '
+      {
         system_instruction: {parts: [{text: $sys}]},
-        contents: $contents,
+        contents: $contents[0],
         generationConfig: {maxOutputTokens: $max_tokens, temperature: $temp}
-      }')"
+      }' -nc \
+      --arg sys "$system_prompt" \
+      --argjson max_tokens "$max_tokens" \
+      --argjson temp "$temperature" \
+      --slurpfile contents "$contents_file"
   fi
 
   log_debug "Google API call: model=$model provider=$provider url=$api_url"
@@ -516,11 +547,12 @@ agent_call_google() {
     "Content-Type: application/json"
 
   local http_code
-  http_code="$(_api_call_with_retry 3 "$api_url" "$headers_file" "$body" "$response_file" "Google")" || true
+  http_code="$(_api_call_with_retry 3 "$api_url" "$headers_file" "$body_file" "$response_file" "Google")" || true
   local response
   response="$(cat "$response_file" 2>/dev/null)"
 
-  rm -f "$response_file" "$headers_file"
+  rm -f "$response_file" "$headers_file" "$body_file" "$contents_file"
+  [[ -n "$tools_file" ]] && rm -f "$tools_file"
 
   if ! _api_check_response "$response" "$http_code" "Google"; then
     return 1
