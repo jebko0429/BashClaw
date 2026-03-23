@@ -184,7 +184,7 @@ Because Android is hostile to long-running background processes, BashClaw should
 
 ## Roadmap
 
-### Phase 1: Foundations
+### Phase 1: Foundations [x]
 
 - add Termux environment detection
 - centralize writable path resolution
@@ -192,7 +192,7 @@ Because Android is hostile to long-running background processes, BashClaw should
 - add `bashclaw termux doctor`
 - add capability detection for Termux API commands
 
-### Phase 2: Native Tools
+### Phase 2: Native Tools [x]
 
 - add clipboard tool support
 - add notification and toast support
