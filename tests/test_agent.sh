@@ -97,6 +97,51 @@ result="$(agent_resolve_provider "unknown-model-xyz")"
 assert_eq "$result" "anthropic"
 teardown_test_env
 
+test_start "agent_resolve_fallback_model uses defaults chain"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{
+  "agents": {
+    "defaults": {
+      "fallbackModels": ["gpt-4o", "gemini-2.5-pro"]
+    },
+    "list": []
+  }
+}
+EOF
+_CONFIG_CACHE=""
+config_load
+result="$(agent_resolve_fallback_model "main" "claude-opus-4-6")"
+assert_eq "$result" "gpt-4o"
+result="$(agent_resolve_fallback_model "main" "gpt-4o")"
+assert_eq "$result" "gemini-2.5-pro"
+teardown_test_env
+
+test_start "agent_resolve_fallback_model uses agent-specific chain"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{
+  "agents": {
+    "defaults": {
+      "fallbackModels": ["gpt-4o", "gemini-2.5-pro"]
+    },
+    "list": [
+      {
+        "id": "ops",
+        "fallbackModels": ["gpt-4o-mini", "gemini-2.5-flash"]
+      }
+    ]
+  }
+}
+EOF
+_CONFIG_CACHE=""
+config_load
+result="$(agent_resolve_fallback_model "ops" "claude-sonnet-4-5")"
+assert_eq "$result" "gpt-4o-mini"
+result="$(agent_resolve_fallback_model "ops" "gpt-4o-mini")"
+assert_eq "$result" "gemini-2.5-flash"
+teardown_test_env
+
 # ---- agent_build_system_prompt ----
 
 test_start "agent_build_system_prompt includes identity"

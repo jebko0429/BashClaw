@@ -144,6 +144,7 @@ BashClaw targets Bash 3.2 deliberately: no `declare -A`, no `mapfile`, no `|&`. 
 - **Multi-channel** -- Telegram, Discord, Slack, Feishu/Lark. Each channel is one shell script. Auto-starts with gateway.
 - **Dual engine** -- Claude Code CLI (reuses subscription) or builtin (direct API via curl). Per-agent configurable.
 - **Multi-provider** -- 18 providers: Claude, GPT, Gemini, DeepSeek, Qwen, Zhipu, Moonshot, MiniMax, Groq, xAI, Mistral, Ollama, vLLM, and more.
+- **Provider failover** -- Ordered `fallbackModels` chain can automatically rotate across providers when one model/API is failing.
 - **Pure shell** -- Zero dependencies beyond bash 3.2, curl, jq. Already on your machine.
 - **14 built-in tools** -- Web fetch, search, shell exec, memory, cron, file I/O, inter-agent messaging.
 - **Plugin system** -- 4 discovery paths. Register tools, hooks, commands, providers.
@@ -298,7 +299,36 @@ bashclaw agent -m "hello"
 - Calls provider APIs directly (Anthropic, OpenAI, Google, and 15 more)
 - Runs BashClaw's own tool loop (max iterations configurable via `maxTurns`)
 - Handles context overflow with automatic compaction, model fallback, and session reset
+- Automatically fails over to the next configured fallback model when a provider call fails or returns an API error
 - Three API formats: Anthropic (`/v1/messages`), OpenAI-compatible (`/v1/chat/completions`), Google (`/v1beta/.../generateContent`)
+
+**Provider failover:**
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": "claude-opus-4-6",
+      "fallbackModels": [
+        "gpt-4o",
+        "gemini-2.5-pro"
+      ]
+    },
+    "list": [
+      {
+        "id": "ops",
+        "model": "claude-sonnet-4-5",
+        "fallbackModels": [
+          "gpt-4o-mini",
+          "gemini-2.5-flash"
+        ]
+      }
+    ]
+  }
+}
+```
+
+When the current provider/model transport fails or returns an API error, BashClaw retries the turn on the next entry in `fallbackModels`. Agent-specific `fallbackModels` override the default chain.
 
 ### Auto Engine
 
@@ -640,7 +670,7 @@ Agent Runtime
   3. Build system prompt (10 segments)
   4. API call (Anthropic / OpenAI / Google / ...)
   5. Tool loop (max 10 iterations)
-  6. Overflow: reduce history -> compact -> model fallback -> reset
+  6. Failure handling: provider/model failover, then overflow degrade path (reduce history -> compact -> fallback -> reset)
   |
   v
 Session Persist (JSONL) --> Hook: post_message --> Delivery

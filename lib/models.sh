@@ -307,15 +307,34 @@ _provider_api_version() {
     '.providers[$p].api_version // empty' 2>/dev/null)"
 }
 
-# Resolve the next fallback model from the configured fallback chain.
-agent_resolve_fallback_model() {
-  local current_model="$1"
+# Return the configured fallback chain for an agent.
+# Agent-specific fallbackModels override defaults when present.
+agent_fallback_models() {
+  local agent_id="${1:-main}"
 
   require_command jq "agent_resolve_fallback_model requires jq"
 
   local fallbacks
-  fallbacks="$(config_get_raw '.agents.defaults.fallbackModels // []' 2>/dev/null)"
+  fallbacks="$(config_agent_get_raw "$agent_id" '.fallbackModels // null' 2>/dev/null)"
   if [[ -z "$fallbacks" || "$fallbacks" == "null" || "$fallbacks" == "[]" ]]; then
+    printf '[]'
+    return
+  fi
+
+  printf '%s' "$fallbacks"
+}
+
+# Resolve the next fallback model from the configured fallback chain.
+# The chain is ordered and can span providers (for example Anthropic -> OpenAI -> Gemini).
+agent_resolve_fallback_model() {
+  local agent_id="${1:-main}"
+  local current_model="$2"
+
+  require_command jq "agent_resolve_fallback_model requires jq"
+
+  local fallbacks
+  fallbacks="$(agent_fallback_models "$agent_id")"
+  if [[ -z "$fallbacks" || "$fallbacks" == "[]" ]]; then
     printf ''
     return
   fi
@@ -324,8 +343,8 @@ agent_resolve_fallback_model() {
   next="$(printf '%s' "$fallbacks" | jq -r --arg cur "$current_model" '
     . as $list |
     (to_entries | map(select(.value == $cur)) | .[0].key // -1) as $idx |
-    if $idx == -1 then .[0]
-    elif ($idx + 1) < length then .[$idx + 1]
+    if $idx == -1 then ([.[] | select(. != $cur)][0] // empty)
+    elif ($idx + 1) < length then ([.[($idx + 1):][] | select(. != $cur)][0] // empty)
     else empty
     end
   ' 2>/dev/null)"
@@ -530,4 +549,3 @@ model_get_capabilities() {
     printf '%s' "$caps"
   fi
 }
-

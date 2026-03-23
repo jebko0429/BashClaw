@@ -11,6 +11,23 @@ BASHCLAW_MAX_COMPACTION_RETRIES=3
 AGENT_MAX_TOOL_ITERATIONS="${AGENT_MAX_TOOL_ITERATIONS:-10}"
 AGENT_DEFAULT_TEMPERATURE="${AGENT_DEFAULT_TEMPERATURE:-0.7}"
 
+# Advance to the next configured fallback model after provider/model failure.
+# This keeps failover policy in one place so the main loop can stay linear.
+_agent_failover_model() {
+  local agent_id="$1"
+  local current_model="$2"
+
+  local fallback
+  fallback="$(agent_resolve_fallback_model "$agent_id" "$current_model")"
+  if [[ -z "$fallback" ]]; then
+    printf ''
+    return
+  fi
+
+  log_warn "Failing over agent=$agent_id from $current_model to $fallback"
+  printf '%s' "$fallback"
+}
+
 # ---- Message Building ----
 
 agent_build_messages() {
@@ -387,9 +404,8 @@ agent_run() {
       fi
 
       local fallback
-      fallback="$(agent_resolve_fallback_model "$current_model")"
+      fallback="$(_agent_failover_model "$agent_id" "$current_model")"
       if [[ -n "$fallback" ]]; then
-        log_info "Falling back from $current_model to $fallback"
         current_model="$fallback"
         max_tokens="$(_model_max_tokens "$current_model")"
         compaction_retries=0
@@ -405,14 +421,31 @@ agent_run() {
       continue
     fi
 
+    local api_error=""
+    if [[ "$api_call_failed" != "true" ]]; then
+      api_error="$(printf '%s' "$response" | jq -r '.error // empty' 2>/dev/null)"
+    fi
+
+    # General provider/model failover path:
+    # if the API transport fails or the provider returns an error object, try the
+    # next configured fallback model before giving up on the turn.
+    if [[ "$api_call_failed" == "true" || ( -n "$api_error" && "$api_error" != "null" ) ]]; then
+      local fallback
+      fallback="$(_agent_failover_model "$agent_id" "$current_model")"
+      if [[ -n "$fallback" ]]; then
+        current_model="$fallback"
+        max_tokens="$(_model_max_tokens "$current_model")"
+        compaction_retries=0
+        iteration=$((iteration - 1))
+        continue
+      fi
+    fi
+
     if [[ "$api_call_failed" == "true" ]]; then
       log_error "API call failed on iteration $iteration"
       printf '%s' "$response"
       return 1
     fi
-
-    local api_error
-    api_error="$(printf '%s' "$response" | jq -r '.error // empty' 2>/dev/null)"
     if [[ -n "$api_error" && "$api_error" != "null" ]]; then
       log_error "API error: $api_error"
       printf '%s' "$response"
