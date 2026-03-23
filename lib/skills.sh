@@ -278,7 +278,7 @@ skills_inject_prompt() {
     local name desc
     name="$(printf '%s' "$skills_json" | jq -r ".[$idx].name")"
     desc="$(printf '%s' "$skills_json" | jq -r ".[$idx].description")"
-    printf -- '- **%s**: %s\n' "$name" "$desc"
+    printf '%s\n' "- **${name}**: ${desc}"
     idx=$((idx + 1))
   done
 

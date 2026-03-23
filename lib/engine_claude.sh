@@ -139,7 +139,7 @@ _engine_claude_map_profile() {
     if [[ "$found" == "true" ]]; then
       printf '+%s\n' "$cc_name"
     else
-      printf -- '-%s\n' "$cc_name"
+      printf '%s\n' "-${cc_name}"
     fi
   done
 
