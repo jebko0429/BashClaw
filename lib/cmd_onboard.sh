@@ -7,6 +7,9 @@ cmd_onboard() {
 
   local step=1
   local total_steps=6
+  if platform_is_termux; then
+    total_steps=7
+  fi
 
   # Step 1: Config initialization
   printf 'Step %d/%d: Configuration\n' "$step" "$total_steps"
@@ -47,10 +50,22 @@ cmd_onboard() {
   printf 'Step %d/%d: Daemon Setup\n' "$step" "$total_steps"
   printf '%s\n' '---------------------'
   _onboard_daemon
+  step=$((step + 1))
   printf '\n'
+
+  if platform_is_termux; then
+    printf 'Step %d/%d: Mobile Extras\n' "$step" "$total_steps"
+    printf '%s\n' '----------------------'
+    _onboard_termux_mobile
+    printf '\n'
+  fi
 
   printf 'Setup complete!\n'
   printf 'Run "bashclaw gateway" to start the server and open http://localhost:18789\n'
+  if platform_is_termux; then
+    printf 'On Termux, open http://localhost:18789 in your phone browser for the mobile dashboard.\n'
+    printf 'Run "bashclaw termux status" to review device integration status.\n'
+  fi
   printf 'Run "bashclaw agent -i" for interactive CLI mode.\n'
   printf 'Run "bashclaw daemon status" to check the service.\n'
 }
@@ -442,6 +457,40 @@ _onboard_gateway() {
   config_set '.gateway.auth.token' "\"${token}\""
   printf 'Gateway auth token generated: %s\n' "$token"
   printf 'Use this token in the Authorization header for API requests.\n'
+}
+
+_onboard_termux_mobile() {
+  printf 'Termux environment detected. BashClaw can use Android notifications and phone-native paths.
+'
+
+  if [[ ! -e "$(platform_termux_shared_storage)" ]]; then
+    printf 'Shared storage is not linked yet. Run "bashclaw termux enable --setup-storage" later if you want Downloads/shared files.
+'
+  fi
+
+  if ! platform_termux_boot_ready; then
+    printf 'Boot integration is not ready yet. Run "bashclaw termux enable --install-boot" after installing Termux:Boot.
+'
+  fi
+
+  if platform_termux_api_available termux-notification; then
+    printf 'Enable Android notifications for agent replies? [Y/n]: '
+    local answer
+    read -r answer
+    answer="${answer:-Y}"
+    if [[ "$answer" == "n" || "$answer" == "N" ]]; then
+      config_set '.termux.notifyOnAgentResponse' 'false'
+      printf 'Termux reply notifications disabled.
+'
+    else
+      config_set '.termux.notifyOnAgentResponse' 'true'
+      printf 'Termux reply notifications enabled.
+'
+    fi
+  else
+    printf 'termux-notification is not available. Install Termux:API to enable completion notifications.
+'
+  fi
 }
 
 _onboard_daemon() {

@@ -742,6 +742,15 @@ html, body {
   border-color: var(--error);
 }
 
+.mobile-chat-tip {
+  display: none;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--accent-dim);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 /* ---- Empty State ---- */
 .empty-state {
   text-align: center;
@@ -756,13 +765,21 @@ html, body {
   .nav-title { display: none; }
   .nav-tab { padding: 4px 8px; font-size: 11px; }
   .container { padding: 12px; gap: 12px; }
+  .chat-layout { min-height: 100%; }
   .chat-msg { max-width: 92%; }
   .status-grid { grid-template-columns: repeat(2, 1fr); }
   .agent-detail-grid { grid-template-columns: 1fr; }
   .sessions-table { font-size: 11px; }
   .sessions-table th, .sessions-table td { padding: 6px 8px; }
-  .chat-toolbar { flex-wrap: wrap; }
-  .chat-toolbar select { max-width: 120px; }
+  .chat-toolbar { flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chat-toolbar label { width: auto; }
+  .chat-toolbar select { max-width: none; flex: 1 1 140px; }
+  .chat-input-area { padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); }
+  .chat-input-row { flex-direction: column; align-items: stretch; }
+  #chat-input { min-height: 92px; font-size: 16px; }
+  #chat-send { width: 100%; min-height: 42px; }
+  .chat-footer { flex-wrap: wrap; gap: 8px; }
+  .mobile-chat-tip { display: block; }
 }
 
 /* ---- Scrollbar ---- */
@@ -818,6 +835,7 @@ html, body {
         <select id="chat-session"><option value="">default</option></select>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
+      <div class="mobile-chat-tip">Phone mode: tap Send to submit. Use Shift+Enter for a newline.</div>
       <div class="chat-input-area">
         <div class="chat-input-row">
           <textarea id="chat-input" placeholder="Type a message... (Enter to send, Shift+Enter for newline)" rows="1" autocomplete="off"></textarea>

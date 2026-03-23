@@ -146,4 +146,21 @@ set -e
 assert_ne "$rc" "0" "invalid API key should return non-zero"
 teardown_test_env
 
+# ---- _onboard_termux_mobile enables notifications when accepted ----
+
+test_start "_onboard_termux_mobile enables termux reply notifications"
+setup_test_env
+_source_libs
+config_init_default >/dev/null 2>&1
+platform_is_termux() { return 0; }
+platform_termux_api_available() { [[ "$1" == "termux-notification" ]]; }
+platform_termux_shared_storage() { printf '%s/storage/shared' "$BASHCLAW_STATE_DIR"; }
+platform_termux_boot_ready() { return 1; }
+result="$(printf '\n' | _onboard_termux_mobile 2>&1)"
+assert_contains "$result" "Termux environment detected"
+config_load
+notify_enabled="$(config_get '.termux.notifyOnAgentResponse' 'false')"
+assert_eq "$notify_enabled" "true"
+teardown_test_env
+
 report_results

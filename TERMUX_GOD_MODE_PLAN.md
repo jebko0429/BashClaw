@@ -207,7 +207,7 @@ Because Android is hostile to long-running background processes, BashClaw should
 - harden update/install flows
 - improve local logging and recovery behavior
 
-### Phase 4: Mobile UX
+### Phase 4: Mobile UX [x]
 
 - improve phone-sized web dashboard behavior
 - add Termux-focused onboarding

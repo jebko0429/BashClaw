@@ -20,6 +20,35 @@ _cmd_agent_color() {
   esac
 }
 
+_cmd_agent_compact_mode() {
+  if platform_is_termux; then
+    return 0
+  fi
+
+  local cols="${COLUMNS:-0}"
+  if [[ "$cols" =~ ^[0-9]+$ ]] && (( cols > 0 && cols < 90 )); then
+    return 0
+  fi
+
+  return 1
+}
+
+_cmd_agent_notify_completion() {
+  local response="$1"
+  [[ -z "$response" ]] && return 0
+  platform_is_termux || return 0
+  platform_termux_api_available termux-notification || return 0
+
+  local enabled
+  enabled="$(config_get '.termux.notifyOnAgentResponse' 'false')"
+  [[ "$enabled" == 'true' ]] || return 0
+
+  local summary="$response"
+  summary="$(printf '%s' "$summary" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')"
+  summary="${summary:0:120}"
+  termux-notification --title 'BashClaw reply ready' --content "$summary" >/dev/null 2>&1 || true
+}
+
 _cmd_agent_print_banner() {
   local agent_id="$1"
   local channel="$2"
@@ -29,6 +58,18 @@ _cmd_agent_print_banner() {
   provider="$(agent_resolve_provider "$model")"
   sess_file="$(session_file "$agent_id" "$channel" "$sender")"
   msg_count="$(session_count "$sess_file" 2>/dev/null || printf '0')"
+
+  if _cmd_agent_compact_mode; then
+    printf '%sBashClaw%s  %s | %s (%s) | %s msgs\n' \
+      "$(_cmd_agent_color bold)" \
+      "$(_cmd_agent_color reset)" \
+      "$agent_id" \
+      "$model" \
+      "$provider" \
+      "$msg_count"
+    printf '%sCommands:%s /reset /history /status /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
+    return
+  fi
 
   printf '%sBashClaw Chat%s\n' "$(_cmd_agent_color bold)" "$(_cmd_agent_color reset)"
   printf '%sagent%s   %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$agent_id"
@@ -126,6 +167,7 @@ cmd_agent() {
 
   local response
   response="$(engine_run "$agent_id" "$message" "$channel" "$sender")"
+  _cmd_agent_notify_completion "$response"
   if [[ -n "$response" ]]; then
     printf '%s\n' "$response"
   fi
@@ -204,6 +246,7 @@ cmd_agent_interactive() {
 
     local response
     response="$(engine_run "$agent_id" "$input" "$channel" "$sender")"
+    _cmd_agent_notify_completion "$response"
     _cmd_agent_print_response "$response"
   done
 }

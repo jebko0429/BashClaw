@@ -374,4 +374,42 @@ tokens="$(agent_estimate_tokens "/nonexistent/session.jsonl")"
 assert_eq "$tokens" "0"
 teardown_test_env
 
+# ---- cmd_agent mobile helpers ----
+
+test_start "_cmd_agent_compact_mode returns true on Termux"
+setup_test_env
+platform_is_termux() { return 0; }
+if _cmd_agent_compact_mode; then
+  _test_pass
+else
+  _test_fail "compact mode should enable on Termux"
+fi
+teardown_test_env
+
+test_start "_cmd_agent_notify_completion sends notification when enabled"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{"termux": {"notifyOnAgentResponse": true}}
+EOF
+_CONFIG_CACHE=""
+config_load
+mock_dir="${_TEST_TMPDIR}/mockbin"
+mkdir -p "$mock_dir"
+notify_file="${_TEST_TMPDIR}/notify.txt"
+cat > "${mock_dir}/termux-notification" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "__NOTIFY_FILE__"
+EOF
+sed -i "s|__NOTIFY_FILE__|$notify_file|" "${mock_dir}/termux-notification"
+chmod +x "${mock_dir}/termux-notification"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+platform_is_termux() { return 0; }
+platform_termux_api_available() { [[ "$1" == "termux-notification" ]]; }
+_cmd_agent_notify_completion "finished task successfully"
+PATH="$OLD_PATH"
+args="$(cat "$notify_file")"
+assert_contains "$args" "BashClaw reply ready"
+teardown_test_env
+
 report_results
