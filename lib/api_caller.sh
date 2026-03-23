@@ -225,7 +225,7 @@ _openai_convert_messages() {
             | if (($text | length) > 0) or (($tool_calls | length) > 0) then
                 {
                   role: "assistant",
-                  content: (if ($text | length) > 0 then $text else null end),
+                  content: (if ($text | length) > 0 then $text else "" end),
                   tool_calls: $tool_calls
                 }
                 | if (.tool_calls | length) == 0 then del(.tool_calls) else . end

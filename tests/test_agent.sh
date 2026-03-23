@@ -219,6 +219,20 @@ assert_eq "$(printf '%s' "$result" | jq -r '.[2].tool_call_id')" "tool_123"
 assert_eq "$(printf '%s' "$result" | jq -r '.[2].content')" '{"ok":true}'
 teardown_test_env
 
+test_start "openai message conversion keeps assistant tool-call content as string"
+setup_test_env
+messages='[
+  {"role":"assistant","content":[
+    {"type":"tool_use","id":"tool_456","name":"memory","input":{"action":"get","key":"todo"}}
+  ]}
+]'
+result="$(_openai_convert_messages "system prompt" "$messages")"
+assert_json_valid "$result"
+assert_eq "$(printf '%s' "$result" | jq -r '.[1].role')" "assistant"
+assert_eq "$(printf '%s' "$result" | jq -r '.[1].content')" ""
+assert_eq "$(printf '%s' "$result" | jq -r '.[1].tool_calls[0].id')" "tool_456"
+teardown_test_env
+
 test_start "agent_resolve_model maps ollama alias to glm-5:cloud"
 setup_test_env
 cat > "$BASHCLAW_CONFIG" <<'EOF'
