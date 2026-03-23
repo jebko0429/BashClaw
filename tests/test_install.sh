@@ -156,19 +156,52 @@ result="$(
 assert_eq "$result" "true"
 teardown_test_env
 
-# ---- _create_default_config creates valid JSON ----
+# ---- _resolve_install_source derives current repo/fallbacks ----
 
-test_start "_create_default_config creates valid JSON config"
+test_start "_resolve_install_source derives tarball from GitHub repo"
 setup_test_env
+result="$(
+  _source_install_functions
+  BASHCLAW_REPO="https://github.com/example/bashclaw.git"
+  BASHCLAW_REF="feature-branch"
+  BASHCLAW_TARBALL=""
+  _resolve_install_source
+  printf '%s\n%s\n%s' "$_INSTALL_SOURCE_REPO" "$_INSTALL_SOURCE_REF" "$_INSTALL_SOURCE_TARBALL"
+)"
+repo="$(printf '%s' "$result" | sed -n '1p')"
+ref="$(printf '%s' "$result" | sed -n '2p')"
+tarball="$(printf '%s' "$result" | sed -n '3p')"
+assert_eq "$repo" "https://github.com/example/bashclaw.git"
+assert_eq "$ref" "feature-branch"
+assert_eq "$tarball" "https://github.com/example/bashclaw/archive/refs/heads/feature-branch.tar.gz"
+teardown_test_env
+
+# ---- _create_default_config uses installed bashclaw config init ----
+
+test_start "_create_default_config uses installed bashclaw config init"
+setup_test_env
+fake_install_dir="${_TEST_TMPDIR}/install"
+mkdir -p "$fake_install_dir"
+cat > "${fake_install_dir}/bashclaw" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+state_dir="${BASHCLAW_STATE_DIR:?}"
+mkdir -p "$state_dir"
+cat > "${state_dir}/bashclaw.json" <<'JSON'
+{"from":"installed-binary"}
+JSON
+EOF
+chmod +x "${fake_install_dir}/bashclaw"
 (
   export HOME="$_TEST_TMPDIR"
   _source_install_functions
-  _create_default_config
+  _create_default_config "$fake_install_dir"
 )
 config_file="${_TEST_TMPDIR}/.bashclaw/bashclaw.json"
 if [[ -f "$config_file" ]]; then
   content="$(cat "$config_file")"
   assert_json_valid "$content"
+  assert_contains "$content" '"from":"installed-binary"'
 else
   _test_fail "config file was not created at $config_file"
 fi

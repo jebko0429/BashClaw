@@ -3,8 +3,12 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/shareAI-lab/bashclaw/main/install.sh | bash
 set -euo pipefail
 
-BASHCLAW_REPO="https://github.com/shareAI-lab/bashclaw.git"
-BASHCLAW_TARBALL="https://github.com/shareAI-lab/bashclaw/archive/refs/heads/main.tar.gz"
+_DEFAULT_BASHCLAW_REPO="https://github.com/shareAI-lab/bashclaw.git"
+_DEFAULT_BASHCLAW_REF="main"
+_INSTALL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_INSTALL_SOURCE_REPO=""
+_INSTALL_SOURCE_REF=""
+_INSTALL_SOURCE_TARBALL=""
 
 _INSTALL_DIR="${BASHCLAW_INSTALL_DIR:-${HOME}/.bashclaw/bin}"
 _NO_PATH=false
@@ -85,6 +89,69 @@ _check_bash_version() {
 
 _is_command_available() {
   command -v "$1" &>/dev/null
+}
+
+_normalize_github_repo_url() {
+  local url="${1:-}"
+  if [[ -z "$url" ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  case "$url" in
+    git@github.com:*)
+      url="https://github.com/${url#git@github.com:}"
+      ;;
+    ssh://git@github.com/*)
+      url="https://github.com/${url#ssh://git@github.com/}"
+      ;;
+  esac
+
+  printf '%s' "$url"
+}
+
+_derive_github_tarball_url() {
+  local repo_url="${1:-}"
+  local ref="${2:-${_DEFAULT_BASHCLAW_REF}}"
+
+  repo_url="$(_normalize_github_repo_url "$repo_url")"
+  if [[ "$repo_url" != https://github.com/* ]]; then
+    printf '%s' ""
+    return 0
+  fi
+
+  repo_url="${repo_url%.git}"
+  printf '%s/archive/refs/heads/%s.tar.gz' "$repo_url" "$ref"
+}
+
+_resolve_install_source() {
+  local source_dir="${BASHCLAW_INSTALL_SOURCE_DIR:-${_INSTALL_SCRIPT_DIR}}"
+  local repo="${BASHCLAW_REPO:-}"
+  local ref="${BASHCLAW_REF:-}"
+  local tarball="${BASHCLAW_TARBALL:-}"
+
+  if [[ -z "$repo" && -d "${source_dir}/.git" ]] && _is_command_available git; then
+    repo="$(git -C "$source_dir" config --get remote.origin.url 2>/dev/null || true)"
+    ref="$(git -C "$source_dir" branch --show-current 2>/dev/null || true)"
+  fi
+
+  repo="$(_normalize_github_repo_url "$repo")"
+  if [[ -z "$repo" ]]; then
+    repo="$_DEFAULT_BASHCLAW_REPO"
+  fi
+  if [[ -z "$ref" ]]; then
+    ref="$_DEFAULT_BASHCLAW_REF"
+  fi
+  if [[ -z "$tarball" ]]; then
+    tarball="$(_derive_github_tarball_url "$repo" "$ref")"
+  fi
+  if [[ -z "$tarball" ]]; then
+    tarball="$(_derive_github_tarball_url "$_DEFAULT_BASHCLAW_REPO" "$_DEFAULT_BASHCLAW_REF")"
+  fi
+
+  _INSTALL_SOURCE_REPO="$repo"
+  _INSTALL_SOURCE_REF="$ref"
+  _INSTALL_SOURCE_TARBALL="$tarball"
 }
 
 # ---- Dependency checks ----
@@ -202,19 +269,26 @@ _download_bashclaw() {
     _info "Cloning bashclaw..."
     if [[ -d "$install_dir" ]]; then
       _info "Existing installation found, updating..."
-      (cd "$install_dir" && git pull --ff-only 2>/dev/null) || {
+      if [[ -d "$install_dir/.git" ]]; then
+        git -C "$install_dir" remote set-url origin "$_INSTALL_SOURCE_REPO" 2>/dev/null || true
+        (cd "$install_dir" && git fetch origin "$_INSTALL_SOURCE_REF" && git checkout "$_INSTALL_SOURCE_REF" && git pull --ff-only origin "$_INSTALL_SOURCE_REF" 2>/dev/null) || {
+          _warn "Git update failed, performing fresh clone..."
+          rm -rf "$install_dir"
+          git clone --depth 1 --branch "$_INSTALL_SOURCE_REF" "$_INSTALL_SOURCE_REPO" "$install_dir"
+        }
+      else
         _warn "Git pull failed, performing fresh clone..."
         rm -rf "$install_dir"
-        git clone --depth 1 "$BASHCLAW_REPO" "$install_dir"
-      }
+        git clone --depth 1 --branch "$_INSTALL_SOURCE_REF" "$_INSTALL_SOURCE_REPO" "$install_dir"
+      fi
     else
-      git clone --depth 1 "$BASHCLAW_REPO" "$install_dir"
+      git clone --depth 1 --branch "$_INSTALL_SOURCE_REF" "$_INSTALL_SOURCE_REPO" "$install_dir"
     fi
   else
     _info "Downloading bashclaw tarball..."
     local tmp_tar
     tmp_tar="$(mktemp -t bashclaw_install.XXXXXX.tar.gz 2>/dev/null || mktemp /tmp/bashclaw_install.XXXXXX.tar.gz)"
-    curl -fsSL "$BASHCLAW_TARBALL" -o "$tmp_tar"
+    curl -fsSL "$_INSTALL_SOURCE_TARBALL" -o "$tmp_tar"
     mkdir -p "$install_dir"
     tar xzf "$tmp_tar" -C "$install_dir" --strip-components=1
     rm -f "$tmp_tar"
@@ -316,52 +390,18 @@ _add_path_to_shell_configs() {
 }
 
 _create_default_config() {
+  local install_dir="$1"
   local state_dir="${HOME}/.bashclaw"
-  mkdir -p "$state_dir"
-  mkdir -p "$state_dir/logs"
-  mkdir -p "$state_dir/sessions"
-  mkdir -p "$state_dir/memory"
-  mkdir -p "$state_dir/cron"
-  mkdir -p "$state_dir/hooks"
-  mkdir -p "$state_dir/extensions"
-  mkdir -p "$state_dir/agents"
-
-  mkdir -p "$state_dir/workspace"
-  mkdir -p "$state_dir/workspace/skills"
-  mkdir -p "$state_dir/workspace/memory"
-
   local config_file="${state_dir}/bashclaw.json"
   if [[ -f "$config_file" ]]; then
     _info "Config already exists: $config_file"
     return 0
   fi
 
-  cat > "$config_file" <<'CONFIGEOF'
-{
-  "agents": {
-    "defaults": {
-      "model": "claude-opus-4-6",
-      "maxTurns": 50,
-      "contextTokens": 200000,
-      "engine": "auto"
-    },
-    "list": []
-  },
-  "channels": {},
-  "gateway": {
-    "port": 18789,
-    "auth": {}
-  },
-  "session": {
-    "scope": "per-sender",
-    "idleResetMinutes": 30,
-    "maxHistory": 200
-  }
-}
-CONFIGEOF
-
-  chmod 600 "$config_file" 2>/dev/null || true
-  _info "Created default config: $config_file"
+  mkdir -p "$state_dir"
+  BASHCLAW_STATE_DIR="$state_dir" "${install_dir}/bashclaw" config init >/dev/null 2>&1 || \
+    _fatal "Failed to initialize default config via ${install_dir}/bashclaw config init"
+  _info "Created default config from installed repo: $config_file"
 }
 
 _uninstall() {
@@ -519,12 +559,13 @@ main() {
   _check_bash_version
   _check_curl
   _install_jq
+  _resolve_install_source
   _print ""
 
   # Download and install
   _download_bashclaw "$_INSTALL_DIR"
   _install_command "$_INSTALL_DIR"
-  _create_default_config
+  _create_default_config "$_INSTALL_DIR"
   _verify_install "$_INSTALL_DIR"
 
   _print_instructions
