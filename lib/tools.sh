@@ -53,6 +53,7 @@ _tool_handler() {
     termux_notify)  echo "tool_termux_notify" ;;
     termux_clipboard) echo "tool_termux_clipboard" ;;
     termux_battery) echo "tool_termux_battery" ;;
+    termux_wifi)    echo "tool_termux_wifi" ;;
     termux_open)    echo "tool_termux_open" ;;
     spawn)          echo "tool_spawn" ;;
     spawn_status)   echo "tool_spawn_status" ;;
@@ -68,7 +69,7 @@ _tool_handler() {
 }
 
 _tool_list() {
-  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_open spawn spawn_status"
+  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_open spawn spawn_status"
 }
 
 # Tool optional flag registry (tools that default to disabled unless explicitly allowed).
@@ -323,13 +324,16 @@ Available tools:
 17. termux_battery - Read battery status from Termux API.
     Parameters: none
 
-18. termux_open - Open or share a URL, file, or text through Android intents.
+18. termux_wifi - Read wifi connection details from Termux API.
+    Parameters: none
+
+19. termux_open - Open or share a URL, file, or text through Android intents.
     Parameters: target (string, required), action (open|share, optional)
 
-19. spawn - Spawn a background subagent for long-running tasks.
+20. spawn - Spawn a background subagent for long-running tasks.
     Parameters: task (string, required), label (string, optional)
 
-20. spawn_status - Check status of a spawned background task.
+21. spawn_status - Check status of a spawned background task.
     Parameters: task_id (string, required)
 TOOLDESC
 }
@@ -394,6 +398,9 @@ ${idx}. ${desc}"
    Params: --action <get|set> --text <string>"
 
   _bridge_tool_desc "termux_battery" "termux_battery - Read battery status from Termux API.
+   Params: none"
+
+  _bridge_tool_desc "termux_wifi" "termux_wifi - Read wifi connection details from Termux API.
    Params: none"
 
   _bridge_tool_desc "termux_open" "termux_open - Open or share text, files, or URLs via Android intents.
@@ -648,6 +655,15 @@ _tools_build_full_spec() {
     {
       "name": "termux_battery",
       "description": "Read battery status using the Termux battery API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "termux_wifi",
+      "description": "Read wifi connection details using the Termux wifi API.",
       "input_schema": {
         "type": "object",
         "properties": {},
@@ -1611,6 +1627,31 @@ tool_termux_battery() {
     printf '%s' "$result"
   else
     jq -nc --arg raw "$result" '{"raw": $raw}'
+  fi
+}
+
+# ---- Tool: termux_wifi ----
+
+tool_termux_wifi() {
+  local input="${1:-{}}"
+  require_command jq "termux_wifi tool requires jq"
+  : "$input"
+
+  if ! platform_termux_api_available termux-wifi-connectioninfo; then
+    printf '{"error": "termux-wifi-connectioninfo not available"}'
+    return 1
+  fi
+
+  local result
+  result="$(termux-wifi-connectioninfo 2>/dev/null)" || {
+    printf '{"error": "termux-wifi-connectioninfo failed"}'
+    return 1
+  }
+
+  if printf '%s' "$result" | jq empty 2>/dev/null; then
+    printf '%s' "$result"
+  else
+    jq -nc --arg raw "$result" '{raw: $raw}'
   fi
 }
 

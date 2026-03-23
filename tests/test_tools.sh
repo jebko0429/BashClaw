@@ -248,6 +248,7 @@ assert_contains "$names" "cron"
 assert_contains "$names" "termux_notify"
 assert_contains "$names" "termux_clipboard"
 assert_contains "$names" "termux_battery"
+assert_contains "$names" "termux_wifi"
 assert_contains "$names" "termux_open"
 teardown_test_env
 
@@ -273,6 +274,23 @@ PATH="$OLD_PATH"
 assert_json_valid "$result"
 percentage="$(printf '%s' "$result" | jq -r '.percentage')"
 assert_eq "$percentage" "88"
+teardown_test_env
+
+test_start "tool_execute dispatches termux_wifi"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+printf '#!/usr/bin/env bash
+printf '\''{"ssid":"OfficeWiFi","ip":"192.168.1.2"}'\''
+' > "${mock_dir}/termux-wifi-connectioninfo"
+chmod +x "${mock_dir}/termux-wifi-connectioninfo"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_execute "termux_wifi" '{}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+ssid="$(printf '%s' "$result" | jq -r '.ssid')"
+assert_eq "$ssid" "OfficeWiFi"
 teardown_test_env
 
 test_start "tool_execute returns error for unknown tool"
@@ -569,6 +587,23 @@ PATH="$OLD_PATH"
 assert_json_valid "$result"
 saved="$(cat "$clipboard_set_file")"
 assert_eq "$saved" "clip me"
+teardown_test_env
+
+test_start "tool_termux_wifi returns wifi connection info"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+printf '#!/usr/bin/env bash
+printf '\''{"ssid":"OfficeWiFi","bssid":"00:11:22:33:44:55"}'\''
+' > "${mock_dir}/termux-wifi-connectioninfo"
+chmod +x "${mock_dir}/termux-wifi-connectioninfo"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_wifi '{}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+ssid="$(printf '%s' "$result" | jq -r '.ssid')"
+assert_eq "$ssid" "OfficeWiFi"
 teardown_test_env
 
 test_start "tool_termux_open uses termux-open for open action"
