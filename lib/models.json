@@ -655,8 +655,8 @@
       "api_key_env": "FYRA_API_KEY",
       "models": [
         {
-          "id": "claude-opus-4.5",
-          "name": "Claude Opus 4.5 (Fyra)",
+          "id": "qwen3-next-80b-a3b-instruct",
+          "name": "Fyra Qwen (Fyra)",
           "reasoning": true,
           "input": ["text"],
           "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 },
@@ -675,7 +675,7 @@
       "api": "openai",
       "base_url": "https://openrouter.ai/api/v1",
       "api_key_env": "OPENROUTER_API_KEY",
-      "models": []
+      "models": ["auto"]
     },
     "ollama": {
       "api": "openai",
