@@ -15,6 +15,12 @@ cmd_termux() {
     status)
       cmd_termux_status "$@"
       ;;
+    recipes)
+      cmd_termux_recipes "$@"
+      ;;
+    operator)
+      cmd_termux_operator "$@"
+      ;;
     paths)
       cmd_termux_paths "$@"
       ;;
@@ -146,6 +152,84 @@ cmd_termux_status() {
   printf 'Boot dir:       %s\n' "$(platform_termux_boot_dir)"
   printf 'Boot ready:     %s\n' "$(_termux_bool "$(platform_termux_boot_ready && printf yes || printf no)")"
   printf 'Service mode:   %s\n' "$(platform_termux_service_strategy)"
+  printf 'Operator mode:  %s\n' "$(config_get '.termux.operatorMode' 'false')"
+}
+
+cmd_termux_recipes() {
+  local recipe="${1:-}"
+  local action="list"
+
+  case "$recipe" in
+    -h|--help|help)
+      cat <<'EOF'
+Usage: bashclaw termux recipes [recipe] [run]
+
+Examples:
+  bashclaw termux recipes
+  bashclaw termux recipes battery
+  bashclaw termux recipes connectivity run
+EOF
+      return 0
+      ;;
+  esac
+
+  if [[ -z "$recipe" ]]; then
+    local list_json
+    list_json="$(tool_termux_recipe '{"action":"list"}')"
+    printf '=== BashClaw Termux recipes ===\n'
+    printf '%s' "$list_json" | jq -r '.recipes[] | "- \(.id): \(.summary)"'
+    return 0
+  fi
+
+  if [[ "${2:-}" == "run" ]]; then
+    action="run"
+  else
+    action="describe"
+  fi
+
+  local payload result
+  payload="$(jq -nc --arg action "$action" --arg recipe "$recipe" '{action: $action, recipe: $recipe}')"
+  result="$(tool_termux_recipe "$payload")" || return 1
+
+  if [[ "$action" == "describe" ]]; then
+    printf '=== Termux recipe: %s ===\n' "$recipe"
+    printf '%s' "$result" | jq -r '"Summary: \(.summary)\nUses: \(.uses | join(", "))"'
+  else
+    printf '%s\n' "$result" | jq .
+  fi
+}
+
+cmd_termux_operator() {
+  local subcommand="${1:-status}"
+
+  case "$subcommand" in
+    enable)
+      [[ -f "$(config_path)" ]] || config_init_default >/dev/null 2>&1
+      config_set '.termux.operatorMode' 'true'
+      config_set '.agents.defaults.tools.profile' '"termux-operator"'
+      printf 'Termux operator mode enabled.\n'
+      printf 'Default agent tool profile: %s\n' "$(config_get '.agents.defaults.tools.profile' 'full')"
+      ;;
+    disable)
+      [[ -f "$(config_path)" ]] || config_init_default >/dev/null 2>&1
+      config_set '.termux.operatorMode' 'false'
+      config_set '.agents.defaults.tools.profile' '"full"'
+      printf 'Termux operator mode disabled.\n'
+      ;;
+    status)
+      printf 'Termux operator mode: %s\n' "$(config_get '.termux.operatorMode' 'false')"
+      printf 'Default agent tool profile: %s\n' "$(config_get '.agents.defaults.tools.profile' 'full')"
+      ;;
+    -h|--help|help)
+      cat <<'EOF'
+Usage: bashclaw termux operator [enable|disable|status]
+EOF
+      ;;
+    *)
+      log_error "Unknown termux operator subcommand: $subcommand"
+      return 1
+      ;;
+  esac
 }
 
 cmd_termux_paths() {
@@ -264,12 +348,14 @@ _termux_bool() {
 
 _cmd_termux_usage() {
   cat <<'EOF'
-Usage: bashclaw termux <enable|doctor|status|paths>
+Usage: bashclaw termux <enable|doctor|status|recipes|operator|paths>
 
 Subcommands:
-  enable   Initialize Termux-native state, config, and optional boot/storage helpers
-  doctor   Check Termux compatibility, temp paths, storage, and API tools
-  status   Show the current Termux runtime summary
-  paths    Print Termux-related path resolution
+  enable    Initialize Termux-native state, config, and optional boot/storage helpers
+  doctor    Check Termux compatibility, temp paths, storage, and API tools
+  status    Show the current Termux runtime summary
+  recipes   List or run built-in Termux workflow recipes
+  operator  Enable or inspect Termux operator mode
+  paths     Print Termux-related path resolution
 EOF
 }

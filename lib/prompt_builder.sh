@@ -426,6 +426,13 @@ ${identity_section}"
 ${tool_desc}"
   fi
 
+  # [3.5] Termux operator mode guidance
+  if [[ "$is_subagent" != "true" ]] && [[ "$(config_get '.termux.operatorMode' 'false')" == "true" ]]; then
+    prompt="${prompt}
+
+Termux operator mode: Prefer BashClaw's Termux-native tools for local device work before suggesting manual shell glue. For device state, use termux_battery, termux_wifi, termux_location, termux_telephony, and termux_camera as needed. For common phone workflows, use termux_recipe with the built-in battery, downloads, clipboard, and connectivity recipes. If a required Termux API command is unavailable, say so plainly and offer the closest fallback."
+  fi
+
   # [4] Security guidelines
   prompt="${prompt}
 

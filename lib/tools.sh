@@ -23,6 +23,9 @@ tools_resolve_profile() {
     messaging)
       echo "web_fetch web_search memory session_status message agent_message agents_list"
       ;;
+    termux-operator)
+      echo "memory read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_recipe"
+      ;;
     full|"")
       _tool_list
       ;;
@@ -54,7 +57,11 @@ _tool_handler() {
     termux_clipboard) echo "tool_termux_clipboard" ;;
     termux_battery) echo "tool_termux_battery" ;;
     termux_wifi)    echo "tool_termux_wifi" ;;
+    termux_location) echo "tool_termux_location" ;;
+    termux_telephony) echo "tool_termux_telephony" ;;
+    termux_camera)  echo "tool_termux_camera" ;;
     termux_open)    echo "tool_termux_open" ;;
+    termux_recipe)  echo "tool_termux_recipe" ;;
     spawn)          echo "tool_spawn" ;;
     spawn_status)   echo "tool_spawn_status" ;;
     *)
@@ -69,7 +76,7 @@ _tool_handler() {
 }
 
 _tool_list() {
-  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_open spawn spawn_status"
+  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_recipe spawn spawn_status"
 }
 
 # Tool optional flag registry (tools that default to disabled unless explicitly allowed).
@@ -327,13 +334,25 @@ Available tools:
 18. termux_wifi - Read wifi connection details from Termux API.
     Parameters: none
 
-19. termux_open - Open or share a URL, file, or text through Android intents.
+19. termux_location - Read location details from Termux API.
+    Parameters: provider (gps|network|passive, optional), request (once|last, optional)
+
+20. termux_telephony - Read telephony and carrier details from Termux API.
+    Parameters: none
+
+21. termux_camera - Capture a photo with Termux API.
+    Parameters: path (string, optional), cameraId (number, optional)
+
+22. termux_open - Open or share a URL, file, or text through Android intents.
     Parameters: target (string, required), action (open|share, optional)
 
-20. spawn - Spawn a background subagent for long-running tasks.
+23. termux_recipe - Run or inspect a built-in Termux workflow recipe.
+    Parameters: action (list|describe|run, optional), recipe (battery|downloads|clipboard|connectivity, optional), limit (number, optional), notify (boolean, optional)
+
+24. spawn - Spawn a background subagent for long-running tasks.
     Parameters: task (string, required), label (string, optional)
 
-21. spawn_status - Check status of a spawned background task.
+25. spawn_status - Check status of a spawned background task.
     Parameters: task_id (string, required)
 TOOLDESC
 }
@@ -403,8 +422,20 @@ ${idx}. ${desc}"
   _bridge_tool_desc "termux_wifi" "termux_wifi - Read wifi connection details from Termux API.
    Params: none"
 
+  _bridge_tool_desc "termux_location" "termux_location - Read location details from Termux API.
+   Params: --provider <gps|network|passive> --request <once|last>"
+
+  _bridge_tool_desc "termux_telephony" "termux_telephony - Read telephony and carrier details from Termux API.
+   Params: none"
+
+  _bridge_tool_desc "termux_camera" "termux_camera - Capture a photo with Termux API.
+   Params: --path <string> --cameraId <number>"
+
   _bridge_tool_desc "termux_open" "termux_open - Open or share text, files, or URLs via Android intents.
    Params: --target <string> --action <open|share>"
+
+  _bridge_tool_desc "termux_recipe" "termux_recipe - Run or inspect a built-in Termux workflow recipe.
+   Params: --action <list|describe|run> --recipe <battery|downloads|clipboard|connectivity> --limit <number> --notify <true|false>"
 
   _bridge_tool_desc "spawn" "spawn - Spawn a background subagent for long-running tasks.
    Params: --task <string> --label <string>"
@@ -671,6 +702,39 @@ _tools_build_full_spec() {
       }
     },
     {
+      "name": "termux_location",
+      "description": "Read device location using the Termux location API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {"type": "string", "enum": ["gps", "network", "passive"], "description": "Preferred location provider."},
+          "request": {"type": "string", "enum": ["once", "last"], "description": "Whether to request a fresh reading or last known location."}
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "termux_telephony",
+      "description": "Read telephony and carrier information using the Termux telephony API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "termux_camera",
+      "description": "Capture a photo using the Termux camera API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "description": "Output path for the captured photo. Defaults to the writable Termux temp area."},
+          "cameraId": {"type": "number", "description": "Camera ID to use, such as 0 for rear or 1 for front."}
+        },
+        "required": []
+      }
+    },
+    {
       "name": "termux_open",
       "description": "Open or share a URL, file path, or text using Termux Android intents.",
       "input_schema": {
@@ -680,6 +744,20 @@ _tools_build_full_spec() {
           "action": {"type": "string", "enum": ["open", "share"], "description": "Whether to open or share the target."}
         },
         "required": ["target"]
+      }
+    },
+    {
+      "name": "termux_recipe",
+      "description": "Run or inspect built-in Termux workflow recipes for battery, downloads, clipboard, and connectivity.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {"type": "string", "enum": ["list", "describe", "run"], "description": "Whether to list recipes, describe one, or run one."},
+          "recipe": {"type": "string", "enum": ["battery", "downloads", "clipboard", "connectivity"], "description": "Recipe name to describe or run."},
+          "limit": {"type": "number", "description": "Maximum number of items to return for downloads."},
+          "notify": {"type": "boolean", "description": "Send a Termux notification for recipes that support it."}
+        },
+        "required": []
       }
     },
     {
@@ -1216,7 +1294,7 @@ tool_read_file() {
   require_command jq "read_file tool requires jq"
 
   local path offset limit
-  path="$(printf '%s' "$input" | jq -r '.path // empty')"
+  path="$(printf '%s' "$input" | jq -r '.path // empty' 2>/dev/null)"
   offset="$(printf '%s' "$input" | jq -r '.offset // empty')"
   limit="$(printf '%s' "$input" | jq -r '.limit // empty')"
 
@@ -1275,7 +1353,7 @@ tool_write_file() {
   require_command jq "write_file tool requires jq"
 
   local path content append_flag
-  path="$(printf '%s' "$input" | jq -r '.path // empty')"
+  path="$(printf '%s' "$input" | jq -r '.path // empty' 2>/dev/null)"
   content="$(printf '%s' "$input" | jq -r '.content // empty')"
   append_flag="$(printf '%s' "$input" | jq -r '.append // false')"
 
@@ -1338,7 +1416,7 @@ tool_list_files() {
   require_command jq "list_files tool requires jq"
 
   local path pattern recursive
-  path="$(printf '%s' "$input" | jq -r '.path // empty')"
+  path="$(printf '%s' "$input" | jq -r '.path // empty' 2>/dev/null)"
   pattern="$(printf '%s' "$input" | jq -r '.pattern // empty')"
   recursive="$(printf '%s' "$input" | jq -r '.recursive // false')"
 
@@ -1429,7 +1507,7 @@ tool_file_search() {
   require_command jq "file_search tool requires jq"
 
   local path name_pattern content_pattern max_results
-  path="$(printf '%s' "$input" | jq -r '.path // empty')"
+  path="$(printf '%s' "$input" | jq -r '.path // empty' 2>/dev/null)"
   name_pattern="$(printf '%s' "$input" | jq -r '.name // empty')"
   content_pattern="$(printf '%s' "$input" | jq -r '.content // empty')"
   max_results="$(printf '%s' "$input" | jq -r '.maxResults // empty')"
@@ -1653,6 +1731,200 @@ tool_termux_wifi() {
   else
     jq -nc --arg raw "$result" '{raw: $raw}'
   fi
+}
+
+# ---- Tool: termux_location ----
+
+tool_termux_location() {
+  local input="${1:-{}}"
+  require_command jq "termux_location tool requires jq"
+
+  if ! platform_termux_api_available termux-location; then
+    printf '{"error": "termux-location not available"}'
+    return 1
+  fi
+
+  local provider request
+  provider="$(printf '%s' "$input" | jq -r '.provider // empty' 2>/dev/null)"
+  request="$(printf '%s' "$input" | jq -r '.request // empty' 2>/dev/null)"
+
+  local cmd=(termux-location)
+  [[ -n "$provider" ]] && cmd+=("--provider" "$provider")
+  [[ -n "$request" ]] && cmd+=("--request" "$request")
+
+  local result
+  result="$("${cmd[@]}" 2>/dev/null)" || {
+    printf '{"error": "termux-location failed"}'
+    return 1
+  }
+
+  if printf '%s' "$result" | jq empty 2>/dev/null; then
+    printf '%s' "$result"
+  else
+    jq -nc --arg raw "$result" '{raw: $raw}'
+  fi
+}
+
+# ---- Tool: termux_telephony ----
+
+tool_termux_telephony() {
+  local input="${1:-{}}"
+  require_command jq "termux_telephony tool requires jq"
+  : "$input"
+
+  if ! platform_termux_api_available termux-telephony-deviceinfo; then
+    printf '{"error": "termux-telephony-deviceinfo not available"}'
+    return 1
+  fi
+
+  local result
+  result="$(termux-telephony-deviceinfo 2>/dev/null)" || {
+    printf '{"error": "termux-telephony-deviceinfo failed"}'
+    return 1
+  }
+
+  if printf '%s' "$result" | jq empty 2>/dev/null; then
+    printf '%s' "$result"
+  else
+    jq -nc --arg raw "$result" '{raw: $raw}'
+  fi
+}
+
+# ---- Tool: termux_camera ----
+
+tool_termux_camera() {
+  local input="${1:-{}}"
+  require_command jq "termux_camera tool requires jq"
+
+  if ! platform_termux_api_available termux-camera-photo; then
+    printf '{"error": "termux-camera-photo not available"}'
+    return 1
+  fi
+
+  local path camera_id
+  path="$(printf '%s' "$input" | jq -r '.path // empty' 2>/dev/null)"
+  camera_id="$(printf '%s' "$input" | jq -r '.cameraId // empty' 2>/dev/null)"
+
+  if [[ -z "$path" ]]; then
+    path="$(platform_temp_base 2>/dev/null || printf '%s' "$BASHCLAW_STATE_DIR")/termux-photo-$(date +%Y%m%d-%H%M%S).jpg"
+  fi
+
+  ensure_dir "$(dirname "$path")"
+
+  local cmd=(termux-camera-photo)
+  [[ -n "$camera_id" && "$camera_id" != "null" ]] && cmd+=("-c" "$camera_id")
+  cmd+=("$path")
+
+  "${cmd[@]}" >/dev/null 2>&1 || {
+    printf '{"error": "termux-camera-photo failed"}'
+    return 1
+  }
+
+  jq -nc --arg path "$path" --arg camera_id "${camera_id:-0}" '{ok: true, path: $path, cameraId: ($camera_id | tonumber? // 0)}'
+}
+
+# ---- Tool: termux_recipe ----
+
+tool_termux_recipe() {
+  local input="${1:-{}}"
+  require_command jq "termux_recipe tool requires jq"
+
+  local action recipe limit notify
+  action="$(printf '%s' "$input" | jq -r '.action // "list"' 2>/dev/null)"
+  recipe="$(printf '%s' "$input" | jq -r '.recipe // empty' 2>/dev/null)"
+  limit="$(printf '%s' "$input" | jq -r '.limit // 5' 2>/dev/null)"
+  notify="$(printf '%s' "$input" | jq -r '.notify // false' 2>/dev/null)"
+
+  case "$action" in
+    list)
+      jq -nc '{recipes: [
+        {id: "battery", summary: "Summarize battery state and optionally notify when charge is low."},
+        {id: "downloads", summary: "List the most recent files from the Termux Downloads path."},
+        {id: "clipboard", summary: "Save the current clipboard into BashClaw memory logs."},
+        {id: "connectivity", summary: "Summarize wifi and telephony device connectivity."}
+      ]}'
+      ;;
+    describe)
+      case "$recipe" in
+        battery)
+          jq -nc '{recipe: "battery", uses: ["termux_battery", "termux_notify"], summary: "Reads battery percentage, charging state, and health. Can send a low-battery notification."}'
+          ;;
+        downloads)
+          jq -nc '{recipe: "downloads", uses: ["list_files"], summary: "Returns recent files from the shared Downloads path when it exists."}'
+          ;;
+        clipboard)
+          jq -nc '{recipe: "clipboard", uses: ["termux_clipboard", "write_file"], summary: "Captures clipboard text and appends it to a timestamped clipboard log."}'
+          ;;
+        connectivity)
+          jq -nc '{recipe: "connectivity", uses: ["termux_wifi", "termux_telephony"], summary: "Combines wifi and telephony details into one connectivity report."}'
+          ;;
+        *)
+          printf '{"error": "unknown recipe"}'
+          return 1
+          ;;
+      esac
+      ;;
+    run)
+      case "$recipe" in
+        battery)
+          local battery_json percentage status low
+          battery_json="$(tool_termux_battery '{}')" || return 1
+          percentage="$(printf '%s' "$battery_json" | jq -r '.percentage // .level // 0')"
+          status="$(printf '%s' "$battery_json" | jq -r '.status // .plugged // "unknown"')"
+          low=false
+          if [[ "$percentage" =~ ^[0-9]+$ ]] && (( percentage <= 20 )); then
+            low=true
+            if [[ "$notify" == "true" ]] && platform_termux_api_available termux-notification; then
+              termux-notification --title 'BashClaw battery alert' --content "Battery at ${percentage}% (${status})" >/dev/null 2>&1 || true
+            fi
+          fi
+          jq -nc --argjson battery "$battery_json" --argjson low "$low" '{recipe: "battery", battery: $battery, low: $low}'
+          ;;
+        downloads)
+          local downloads_dir files_json
+          downloads_dir="$(platform_termux_downloads_dir)"
+          if [[ ! -d "$downloads_dir" ]]; then
+            printf '{"error": "downloads path not available"}'
+            return 1
+          fi
+          files_json="$(find "$downloads_dir" -maxdepth 1 -type f -printf '%T@	%f
+' 2>/dev/null | sort -nr | head -n "$limit" | awk -F '	' '{print $2}' | jq -R . | jq -s .)"
+          jq -nc --arg path "$downloads_dir" --argjson files "${files_json:-[]}" '{recipe: "downloads", path: $path, files: $files}'
+          ;;
+        clipboard)
+          local clip_json text log_path ts
+          clip_json="$(tool_termux_clipboard '{"action":"get"}')" || return 1
+          text="$(printf '%s' "$clip_json" | jq -r '.text // empty')"
+          ts="$(date '+%Y-%m-%d %H:%M:%S')"
+          log_path="${BASHCLAW_STATE_DIR}/memory/clipboard.log"
+          ensure_dir "$(dirname "$log_path")"
+          printf '[%s] %s
+' "$ts" "$text" >> "$log_path"
+          jq -nc --arg text "$text" --arg path "$log_path" '{recipe: "clipboard", saved: true, text: $text, path: $path}'
+          ;;
+        connectivity)
+          local wifi_json telephony_json
+          wifi_json='{}'
+          telephony_json='{}'
+          if platform_termux_api_available termux-wifi-connectioninfo; then
+            wifi_json="$(tool_termux_wifi '{}')" || wifi_json='{}'
+          fi
+          if platform_termux_api_available termux-telephony-deviceinfo; then
+            telephony_json="$(tool_termux_telephony '{}')" || telephony_json='{}'
+          fi
+          jq -nc --argjson wifi "$wifi_json" --argjson telephony "$telephony_json" '{recipe: "connectivity", wifi: $wifi, telephony: $telephony}'
+          ;;
+        *)
+          printf '{"error": "unknown recipe"}'
+          return 1
+          ;;
+      esac
+      ;;
+    *)
+      printf '{"error": "action must be list, describe, or run"}'
+      return 1
+      ;;
+  esac
 }
 
 # ---- Tool: termux_open ----

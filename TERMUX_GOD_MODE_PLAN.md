@@ -214,7 +214,7 @@ Because Android is hostile to long-running background processes, BashClaw should
 - improve interactive CLI for mobile usage patterns
 - make notifications part of normal task completion flows
 
-### Phase 5: Phone Operator Mode
+### Phase 5: Phone Operator Mode [x]
 
 - add richer device-state tools
 - add automation recipes for battery, downloads, clipboard, and connectivity

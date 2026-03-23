@@ -249,7 +249,11 @@ assert_contains "$names" "termux_notify"
 assert_contains "$names" "termux_clipboard"
 assert_contains "$names" "termux_battery"
 assert_contains "$names" "termux_wifi"
+assert_contains "$names" "termux_location"
+assert_contains "$names" "termux_telephony"
+assert_contains "$names" "termux_camera"
 assert_contains "$names" "termux_open"
+assert_contains "$names" "termux_recipe"
 teardown_test_env
 
 # ---- tool_execute dispatch ----
@@ -687,6 +691,82 @@ assert_contains "$result" "web_fetch"
 assert_contains "$result" "memory"
 assert_not_contains "$result" "shell"
 assert_not_contains "$result" "write_file"
+teardown_test_env
+
+
+test_start "tool_termux_location returns location info"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+printf '#!/usr/bin/env bash\nprintf '\''{"latitude":14.6,"longitude":121.0}'\''\n' > "${mock_dir}/termux-location"
+chmod +x "${mock_dir}/termux-location"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_location '{}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+lat="$(printf '%s' "$result" | jq -r '.latitude')"
+assert_eq "$lat" "14.6"
+teardown_test_env
+
+test_start "tool_termux_telephony returns telephony info"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+printf '#!/usr/bin/env bash\nprintf '\''{"network_operator":"CarrierX"}'\''\n' > "${mock_dir}/termux-telephony-deviceinfo"
+chmod +x "${mock_dir}/termux-telephony-deviceinfo"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_telephony '{}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+carrier="$(printf '%s' "$result" | jq -r '.network_operator')"
+assert_eq "$carrier" "CarrierX"
+teardown_test_env
+
+test_start "tool_termux_camera captures a photo path"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+printf '#!/usr/bin/env bash\nout="${@: -1}"\nprintf "%s" "photo" > "$out"\n' > "${mock_dir}/termux-camera-photo"
+chmod +x "${mock_dir}/termux-camera-photo"
+out_file="${_TEST_TMPDIR}/camera.jpg"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_camera "$(jq -nc --arg p "$out_file" --argjson c 1 '{path:$p,cameraId:$c}')")"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+assert_file_exists "$out_file"
+path_out="$(printf '%s' "$result" | jq -r '.path')"
+assert_eq "$path_out" "$out_file"
+teardown_test_env
+
+test_start "tool_termux_recipe lists built-in recipes"
+setup_test_env
+result="$(tool_termux_recipe '{"action":"list"}')"
+assert_json_valid "$result"
+recipes="$(printf '%s' "$result" | jq -r '.recipes[].id' | tr '\n' ',')"
+assert_contains "$recipes" "battery"
+assert_contains "$recipes" "downloads"
+assert_contains "$recipes" "clipboard"
+assert_contains "$recipes" "connectivity"
+teardown_test_env
+
+test_start "tool_termux_recipe clipboard saves clipboard log"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+printf '#!/usr/bin/env bash\nprintf '\''clip note'\''\n' > "${mock_dir}/termux-clipboard-get"
+chmod +x "${mock_dir}/termux-clipboard-get"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_recipe '{"action":"run","recipe":"clipboard"}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+log_path="$(printf '%s' "$result" | jq -r '.path')"
+assert_file_exists "$log_path"
+log_content="$(cat "$log_path")"
+assert_contains "$log_content" "clip note"
 teardown_test_env
 
 report_results

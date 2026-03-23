@@ -412,4 +412,20 @@ args="$(cat "$notify_file")"
 assert_contains "$args" "BashClaw reply ready"
 teardown_test_env
 
+
+test_start "agent_build_system_prompt includes termux operator guidance when enabled"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{
+  "termux": {"operatorMode": true},
+  "agents": {"defaults": {}, "list": []}
+}
+EOF
+_CONFIG_CACHE=""
+config_load
+result="$(agent_build_system_prompt "main")"
+assert_contains "$result" "Termux operator mode"
+assert_contains "$result" "termux_recipe"
+teardown_test_env
+
 report_results

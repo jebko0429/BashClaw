@@ -154,4 +154,26 @@ result="$(bash "$CLI" nonexistent_command 2>&1)" || true
 assert_contains "$result" "Usage:"
 teardown_test_env
 
+
+# ---- bashclaw termux recipes ----
+
+test_start "bashclaw termux recipes lists built-in workflows"
+setup_test_env
+result="$(bash "$CLI" termux recipes 2>&1)" || true
+assert_contains "$result" "BashClaw Termux recipes"
+assert_contains "$result" "battery"
+assert_contains "$result" "clipboard"
+teardown_test_env
+
+# ---- bashclaw termux operator ----
+
+test_start "bashclaw termux operator enable sets termux profile"
+setup_test_env
+bash "$CLI" config init >/dev/null 2>&1
+result="$(bash "$CLI" termux operator enable 2>&1)" || true
+assert_contains "$result" "Termux operator mode enabled"
+profile="$(jq -r '.agents.defaults.tools.profile' "$BASHCLAW_CONFIG")"
+assert_eq "$profile" "termux-operator"
+teardown_test_env
+
 report_results
