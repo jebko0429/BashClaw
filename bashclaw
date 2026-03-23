@@ -53,45 +53,60 @@ _require_state_dir() {
 }
 
 usage() {
-  cat <<EOF
-BashClaw v${BASHCLAW_VERSION} - Bash-native AI agent framework
+  local bold="" dim="" cyan="" reset=""
+  if [[ -t 1 && "${TERM:-}" != "dumb" ]]; then
+    bold="$(printf '\033[1m')"
+    dim="$(printf '\033[2m')"
+    cyan="$(printf '\033[36m')"
+    reset="$(printf '\033[0m')"
+  fi
 
-Usage: bashclaw <command> [options]
+  printf '%sBashClaw%s %sv%s%s\n' "$bold" "$reset" "$dim" "$BASHCLAW_VERSION" "$reset"
+  printf '%sBash-native AI agent framework%s\n\n' "$dim" "$reset"
 
-  Commands:
-    agent             Manage agents (start, stop, list, logs)
-    gateway           Start/stop the HTTP gateway
-    daemon            Manage system service (install, status, logs)
-    watchdog          Self-healing supervisor for gateway + heartbeats
-    message  (msg)    Send a message to an agent
-  config   (cfg)    Manage configuration
-  session  (sess)   Manage conversation sessions
-  memory   (mem)    Manage persistent key-value memory
-  cron              Manage scheduled jobs
-  hooks             Manage event hooks
-  boot              Run or check agent boot sequence
-  security (sec)    Security policy and pairing management
-  onboard  (setup)  Interactive setup wizard
-  status            Show system status
-  doctor            Run diagnostics
-  selftest          Run unit tests
-  tool              Invoke a BashClaw tool directly
-  mcp-serve         Run as MCP server (stdio)
-  update            Update bashclaw to latest version
-  completion        Generate shell completion scripts
-  version           Show version info
+  printf '%sUsage:%s  bashclaw <command> [options]\n\n' "$cyan" "$reset"
 
-Options:
-  -h, --help      Show this help
-  -v, --version   Show version
+  printf '%sCommands:%s\n' "$cyan" "$reset"
+  printf '%sCore Commands%s\n' "$bold" "$reset"
+  printf '  %-18s %s\n' "agent" "Manage agents (start, stop, list, logs)"
+  printf '  %-18s %s\n' "message (msg)" "Send a message to an agent"
+  printf '  %-18s %s\n' "gateway" "Start/stop the HTTP gateway"
+  printf '  %-18s %s\n' "status" "Show system status"
+  printf '  %-18s %s\n' "doctor" "Run diagnostics"
+  printf '  %-18s %s\n' "onboard (setup)" "Interactive setup wizard"
+  printf '\n'
 
-Environment:
-  BASHCLAW_STATE_DIR   State directory (default: ~/.bashclaw)
-  BASHCLAW_CONFIG      Config file path override
-  LOG_LEVEL            Log level: debug|info|warn|error|fatal|silent
-  MODEL_ID             Default model ID
+  printf '%sSystem Commands%s\n' "$bold" "$reset"
+  printf '  %-18s %s\n' "config (cfg)" "Manage configuration"
+  printf '  %-18s %s\n' "session (sess)" "Manage conversation sessions"
+  printf '  %-18s %s\n' "memory (mem)" "Manage persistent key-value memory"
+  printf '  %-18s %s\n' "cron" "Manage scheduled jobs"
+  printf '  %-18s %s\n' "hooks" "Manage event hooks"
+  printf '  %-18s %s\n' "boot" "Run or check agent boot sequence"
+  printf '  %-18s %s\n' "security (sec)" "Security policy and pairing management"
+  printf '  %-18s %s\n' "tool" "Invoke a BashClaw tool directly"
+  printf '  %-18s %s\n' "mcp-serve" "Run as MCP server (stdio)"
+  printf '  %-18s %s\n' "watchdog" "Self-healing supervisor for gateway + heartbeats"
+  printf '  %-18s %s\n' "daemon" "Manage system service (install, status, logs)"
+  printf '  %-18s %s\n' "update" "Update bashclaw to latest version"
+  printf '  %-18s %s\n' "completion" "Generate shell completion scripts"
+  printf '  %-18s %s\n' "version" "Show version info"
+  printf '  %-18s %s\n' "selftest" "Run unit tests"
+  printf '\n'
 
-EOF
+  printf '%sOptions%s\n' "$bold" "$reset"
+  printf '  %-18s %s\n' "-h, --help" "Show this help"
+  printf '  %-18s %s\n' "-v, --version" "Show version"
+  printf '\n'
+
+  printf '%sEnvironment%s\n' "$bold" "$reset"
+  printf '  %-18s %s\n' "BASHCLAW_STATE_DIR" "State directory (default: ~/.bashclaw)"
+  printf '  %-18s %s\n' "BASHCLAW_CONFIG" "Config file path override"
+  printf '  %-18s %s\n' "LOG_LEVEL" "Log level: debug|info|warn|error|fatal|silent"
+  printf '  %-18s %s\n' "MODEL_ID" "Default model ID"
+  printf '\n'
+
+  printf '%sTip:%s    bashclaw <command> --help\n' "$cyan" "$reset"
 }
 
 cmd_version() {

@@ -150,12 +150,12 @@ teardown_test_env
 
 test_start "mktemp works"
 setup_test_env
-tmp="$(mktemp -t bashclaw_compat_test.XXXXXX 2>/dev/null || mktemp /tmp/bashclaw_compat_test.XXXXXX)"
-if [[ -f "$tmp" ]]; then
+tmp="$(test_mktemp_dir "bashclaw-compat-test")"
+if [[ -d "$tmp" ]]; then
   _test_pass
-  rm -f "$tmp"
+  rm -rf "$tmp"
 else
-  _test_fail "mktemp did not create a file"
+  _test_fail "mktemp did not create a directory"
 fi
 teardown_test_env
 

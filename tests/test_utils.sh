@@ -8,7 +8,7 @@ BASHCLAW_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/framework.sh"
 
 # Source libs (set required env before sourcing)
-export BASHCLAW_STATE_DIR="/tmp/bashclaw-test-bootstrap"
+export BASHCLAW_STATE_DIR="$(test_bootstrap_state_dir)"
 export LOG_LEVEL="silent"
 mkdir -p "$BASHCLAW_STATE_DIR"
 for _lib in "${BASHCLAW_ROOT}"/lib/*.sh; do

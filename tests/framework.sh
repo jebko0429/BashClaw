@@ -10,6 +10,41 @@ CURRENT_TEST_NAME=""
 _TEST_VERBOSE="${TEST_VERBOSE:-false}"
 _TEST_TMPDIR=""
 _TEST_FAILURES=()
+_TEST_TMP_BASE=""
+
+_test_tmp_base() {
+  if [[ -n "$_TEST_TMP_BASE" ]]; then
+    printf '%s' "$_TEST_TMP_BASE"
+    return 0
+  fi
+
+  local candidate
+  for candidate in "${TMPDIR:-}" "${PWD}/.tmp" "${HOME:-}/.tmp" "/data/local/tmp"; do
+    [[ -z "$candidate" ]] && continue
+    if mkdir -p "$candidate" 2>/dev/null; then
+      _TEST_TMP_BASE="$candidate"
+      printf '%s' "$_TEST_TMP_BASE"
+      return 0
+    fi
+  done
+
+  printf 'ERROR: No writable temporary directory available for tests.\n' >&2
+  return 1
+}
+
+test_bootstrap_state_dir() {
+  local base
+  base="$(_test_tmp_base)" || return 1
+  printf '%s/bashclaw-test-bootstrap' "$base"
+}
+
+test_mktemp_dir() {
+  local prefix="${1:-bashclaw-test}"
+  local base
+  base="$(_test_tmp_base)" || return 1
+
+  mktemp -d "${base}/${prefix}.XXXXXX" 2>/dev/null
+}
 
 # ---- Test Lifecycle ----
 
@@ -172,7 +207,7 @@ assert_ge() {
 # ---- Test Environment Setup ----
 
 setup_test_env() {
-  _TEST_TMPDIR="$(mktemp -d "/tmp/bashclaw-test.XXXXXX")"
+  _TEST_TMPDIR="$(test_mktemp_dir "bashclaw-test")"
   export BASHCLAW_STATE_DIR="$_TEST_TMPDIR"
   export BASHCLAW_CONFIG="${_TEST_TMPDIR}/bashclaw.json"
   export LOG_LEVEL="silent"

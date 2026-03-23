@@ -143,7 +143,9 @@ uuid_generate() {
 tmpfile() {
   local prefix="${1:-bashclaw}"
   local f
-  f="$(mktemp -t "${prefix}.XXXXXX" 2>/dev/null || mktemp "/tmp/${prefix}.XXXXXX")"
+  local tmp_base="${TMPDIR:-${BASHCLAW_STATE_DIR:-${PWD}}/tmp}"
+  mkdir -p "$tmp_base"
+  f="$(mktemp "${tmp_base}/${prefix}.XXXXXX" 2>/dev/null)"
   _TMPFILES+=("$f")
   printf '%s' "$f"
 }
@@ -151,7 +153,9 @@ tmpfile() {
 tmpdir() {
   local prefix="${1:-bashclaw}"
   local d
-  d="$(mktemp -d -t "${prefix}.XXXXXX" 2>/dev/null || mktemp -d "/tmp/${prefix}.XXXXXX")"
+  local tmp_base="${TMPDIR:-${BASHCLAW_STATE_DIR:-${PWD}}/tmp}"
+  mkdir -p "$tmp_base"
+  d="$(mktemp -d "${tmp_base}/${prefix}.XXXXXX" 2>/dev/null)"
   _TMPFILES+=("$d")
   printf '%s' "$d"
 }
