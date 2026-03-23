@@ -41,6 +41,7 @@ ensure_state_dir() {
     "$base/cron"
     "$base/cron/runs"
     "$base/cron/history"
+    "$base/watchdog"
   )
   for d in "${dirs[@]}"; do
     ensure_dir "$d"

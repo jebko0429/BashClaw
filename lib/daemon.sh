@@ -183,7 +183,7 @@ _daemon_install_crontab() {
 
 _daemon_install_termux() {
   local bashclaw_bin="$1"
-  local log_file="$2"
+  local log_file="${BASHCLAW_STATE_DIR:?}/logs/watchdog.log"
 
   local boot_dir="$HOME/.termux/boot"
   local boot_script="${boot_dir}/bashclaw-start.sh"
@@ -193,7 +193,7 @@ _daemon_install_termux() {
   cat > "$boot_script" <<BOOTEOF
 #!/data/data/com.termux/files/usr/bin/bash
 export BASHCLAW_STATE_DIR="${BASHCLAW_STATE_DIR}"
-bash "${bashclaw_bin}" gateway >> "${log_file}" 2>&1 &
+bash "${bashclaw_bin}" watchdog --daemon >> "${log_file}" 2>&1 &
 BOOTEOF
 
   chmod +x "$boot_script"
@@ -302,6 +302,10 @@ daemon_status() {
 }
 
 daemon_stop() {
+  if watchdog_is_running 2>/dev/null; then
+    watchdog_stop 2>/dev/null || true
+  fi
+
   local pid_file
   pid_file="$(_daemon_pid_file)"
 

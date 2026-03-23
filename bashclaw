@@ -58,11 +58,12 @@ BashClaw v${BASHCLAW_VERSION} - Bash-native AI agent framework
 
 Usage: bashclaw <command> [options]
 
-Commands:
-  agent             Manage agents (start, stop, list, logs)
-  gateway           Start/stop the HTTP gateway
-  daemon            Manage system service (install, status, logs)
-  message  (msg)    Send a message to an agent
+  Commands:
+    agent             Manage agents (start, stop, list, logs)
+    gateway           Start/stop the HTTP gateway
+    daemon            Manage system service (install, status, logs)
+    watchdog          Self-healing supervisor for gateway + heartbeats
+    message  (msg)    Send a message to an agent
   config   (cfg)    Manage configuration
   session  (sess)   Manage conversation sessions
   memory   (mem)    Manage persistent key-value memory
@@ -184,7 +185,7 @@ _bashclaw() {
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
-  commands="agent gateway daemon message config session memory cron hooks boot security onboard status doctor tool mcp-serve update completion version help"
+  commands="agent gateway daemon watchdog message config session memory cron hooks boot security onboard status doctor tool mcp-serve update completion version help"
 
   case "$prev" in
     bashclaw)
@@ -198,6 +199,9 @@ _bashclaw() {
       ;;
     daemon)
       COMPREPLY=($(compgen -W "install uninstall status logs restart stop" -- "$cur"))
+      ;;
+    watchdog)
+      COMPREPLY=($(compgen -W "start stop status logs -p --port -d --daemon --no-heartbeat -h --help" -- "$cur"))
       ;;
     config)
       COMPREPLY=($(compgen -W "show get set init validate edit path" -- "$cur"))
@@ -242,6 +246,7 @@ _bashclaw() {
     'agent:Manage agents'
     'gateway:Start/stop the HTTP gateway'
     'daemon:Manage system service'
+    'watchdog:Self-healing supervisor'
     'message:Send a message to an agent'
     'config:Manage configuration'
     'session:Manage conversation sessions'
@@ -875,7 +880,7 @@ cmd_mcp_serve() {
 
 _suggest_command() {
   local input="$1"
-  local known_cmds="agent message msg config cfg session sess memory mem doctor gateway daemon cron hook security sec plugin skill onboard setup status selftest tool mcp-serve hooks-bridge version help update"
+  local known_cmds="agent message msg config cfg session sess memory mem doctor gateway daemon watchdog cron hook security sec plugin skill onboard setup status selftest tool mcp-serve hooks-bridge version help update"
   local best_match=""
 
   if [[ "${#input}" -lt 2 ]]; then
@@ -941,6 +946,9 @@ main() {
       ;;
     daemon)
       cmd_daemon "$@"
+      ;;
+    watchdog)
+      cmd_watchdog "$@"
       ;;
     message|msg)
       cmd_message "$@"
