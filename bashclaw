@@ -74,6 +74,7 @@ usage() {
   printf '  %-18s %s\n' "status" "Show system status"
   printf '  %-18s %s\n' "doctor" "Run diagnostics"
   printf '  %-18s %s\n' "onboard (setup)" "Interactive setup wizard"
+  printf '  %-18s %s\n' "termux" "Termux-native diagnostics and paths"
   printf '\n'
 
   printf '%sSystem Commands%s\n' "$bold" "$reset"
@@ -200,7 +201,7 @@ _bashclaw() {
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
-  commands="agent gateway daemon watchdog message config session memory cron hooks boot security onboard status doctor tool mcp-serve update completion version help"
+  commands="agent gateway daemon watchdog message config session memory cron hooks boot security onboard status doctor termux tool mcp-serve update completion version help"
 
   case "$prev" in
     bashclaw)
@@ -245,6 +246,9 @@ _bashclaw() {
     completion)
       COMPREPLY=($(compgen -W "bash zsh" -- "$cur"))
       ;;
+    termux)
+      COMPREPLY=($(compgen -W "doctor status paths" -- "$cur"))
+      ;;
   esac
 }
 complete -F _bashclaw bashclaw
@@ -273,6 +277,7 @@ _bashclaw() {
     'onboard:Interactive setup wizard'
     'status:Show system status'
     'doctor:Run diagnostics'
+    'termux:Termux-native diagnostics and paths'
     'tool:Invoke a BashClaw tool directly'
     'mcp-serve:Run as MCP server (stdio)'
     'update:Update bashclaw'
@@ -315,6 +320,9 @@ _bashclaw() {
           ;;
         message)
           _values 'subcommand' send
+          ;;
+        termux)
+          _values 'subcommand' doctor status paths
           ;;
         completion)
           _values 'shell' bash zsh
@@ -997,6 +1005,9 @@ main() {
       ;;
     doctor)
       cmd_doctor
+      ;;
+    termux)
+      cmd_termux "$@"
       ;;
     selftest)
       cmd_selftest "$@"

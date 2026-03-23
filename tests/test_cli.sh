@@ -35,6 +35,7 @@ assert_contains "$result" "Commands:"
 assert_contains "$result" "config"
 assert_contains "$result" "session"
 assert_contains "$result" "doctor"
+assert_contains "$result" "termux"
 teardown_test_env
 
 test_start "bashclaw help shows usage"
@@ -107,6 +108,16 @@ assert_contains "$result" "BashClaw doctor"
 assert_contains "$result" "bash"
 assert_contains "$result" "jq"
 assert_contains "$result" "curl"
+teardown_test_env
+
+# ---- bashclaw termux doctor ----
+
+test_start "bashclaw termux doctor shows termux diagnostics"
+setup_test_env
+result="$(bash "$CLI" termux doctor 2>&1)" || true
+assert_contains "$result" "BashClaw Termux doctor"
+assert_contains "$result" "Writable temp base"
+assert_contains "$result" "Termux API Commands"
 teardown_test_env
 
 # ---- bashclaw status ----
