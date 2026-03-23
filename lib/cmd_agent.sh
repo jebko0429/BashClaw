@@ -1,6 +1,98 @@
 #!/usr/bin/env bash
 # Agent CLI command for BashClaw
 
+_cmd_agent_color() {
+  local name="$1"
+  if [[ ! -t 1 || "${TERM:-}" == "dumb" ]]; then
+    return 0
+  fi
+
+  case "$name" in
+    reset) printf '\033[0m' ;;
+    bold) printf '\033[1m' ;;
+    dim) printf '\033[2m' ;;
+    cyan) printf '\033[36m' ;;
+    blue) printf '\033[34m' ;;
+    green) printf '\033[32m' ;;
+    yellow) printf '\033[33m' ;;
+    red) printf '\033[31m' ;;
+    *) ;;
+  esac
+}
+
+_cmd_agent_print_banner() {
+  local agent_id="$1"
+  local channel="$2"
+  local sender="$3"
+  local model provider sess_file msg_count
+  model="$(agent_resolve_model "$agent_id")"
+  provider="$(agent_resolve_provider "$model")"
+  sess_file="$(session_file "$agent_id" "$channel" "$sender")"
+  msg_count="$(session_count "$sess_file" 2>/dev/null || printf '0')"
+
+  printf '%sBashClaw Chat%s\n' "$(_cmd_agent_color bold)" "$(_cmd_agent_color reset)"
+  printf '%sagent%s   %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$agent_id"
+  printf '%smodel%s   %s (%s)\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$model" "$provider"
+  printf '%schannel%s %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$channel"
+  printf '%ssender%s  %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$sender"
+  printf '%ssession%s %s messages\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$msg_count"
+  printf '\n'
+  printf '%sCommands:%s /reset  /history  /status  /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
+}
+
+_cmd_agent_prompt() {
+  printf '%sYou%s › ' "$(_cmd_agent_color blue)" "$(_cmd_agent_color reset)"
+}
+
+_cmd_agent_print_rule() {
+  printf '%s----------------------------------------%s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)"
+}
+
+_cmd_agent_print_response() {
+  local response="$1"
+  _cmd_agent_print_rule
+  if [[ -n "$response" ]]; then
+    printf '%sAgent%s\n%s\n\n' "$(_cmd_agent_color green)" "$(_cmd_agent_color reset)" "$response"
+  else
+    printf '%sAgent%s\n%s[no response]%s\n\n' \
+      "$(_cmd_agent_color green)" \
+      "$(_cmd_agent_color reset)" \
+      "$(_cmd_agent_color dim)" \
+      "$(_cmd_agent_color reset)"
+  fi
+}
+
+_cmd_agent_print_status() {
+  local agent_id="$1"
+  local channel="$2"
+  local sender="$3"
+  local model provider sess_file msg_count
+  model="$(agent_resolve_model "$agent_id")"
+  provider="$(agent_resolve_provider "$model")"
+  sess_file="$(session_file "$agent_id" "$channel" "$sender")"
+  msg_count="$(session_count "$sess_file")"
+
+  _cmd_agent_print_rule
+  printf '%sStatus%s\n' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
+  printf '  agent      %s\n' "$agent_id"
+  printf '  model      %s (%s)\n' "$model" "$provider"
+  printf '  channel    %s\n' "$channel"
+  printf '  sender     %s\n' "$sender"
+  printf '  messages   %s\n\n' "$msg_count"
+}
+
+_cmd_agent_print_history() {
+  local sess_file="$1"
+  local history count
+  history="$(session_load "$sess_file")"
+  count="$(printf '%s' "$history" | jq 'length')"
+
+  _cmd_agent_print_rule
+  printf '%sHistory%s  %s messages\n' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)" "$count"
+  printf '%s' "$history" | jq -r '.[] | "\(.role): \(.content // .tool_name // "[tool]")"' 2>/dev/null | tail -20
+  printf '\n\n'
+}
+
 cmd_agent() {
   local message="" agent_id="main" channel="default" sender="" interactive=false verbose=false
 
@@ -45,11 +137,9 @@ cmd_agent_interactive() {
   local sender="${3:-cli}"
 
   log_info "Interactive mode: agent=$agent_id channel=$channel"
-  printf 'Bashclaw interactive mode (agent: %s)\n' "$agent_id"
-  printf 'Commands: /reset /history /status /quit\n\n'
-
   local sess_file
   sess_file="$(session_file "$agent_id" "$channel" "$sender")"
+  _cmd_agent_print_banner "$agent_id" "$channel" "$sender"
 
   local _use_readline=false
   local _history_file="${BASHCLAW_STATE_DIR}/history"
@@ -63,12 +153,12 @@ cmd_agent_interactive() {
   while true; do
     local input
     if [[ "$_use_readline" == "true" ]]; then
-      if ! IFS= read -e -r -p 'You: ' input; then
+      if ! IFS= read -e -r -p "$(_cmd_agent_prompt)" input; then
         printf '\n'
         break
       fi
     else
-      printf 'You: '
+      _cmd_agent_prompt
       if ! IFS= read -r input; then
         printf '\n'
         break
@@ -89,49 +179,32 @@ cmd_agent_interactive() {
     case "$input" in
       /reset)
         session_clear "$sess_file"
-        printf 'Session cleared.\n\n'
+        _cmd_agent_print_rule
+        printf '%sSession reset.%s\n\n' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
         continue
         ;;
       /history)
-        local history
-        history="$(session_load "$sess_file")"
-        local count
-        count="$(printf '%s' "$history" | jq 'length')"
-        printf 'Session history: %s messages\n' "$count"
-        printf '%s' "$history" | jq -r '.[] | "\(.role): \(.content // .tool_name // "[tool]")"' 2>/dev/null | tail -20
-        printf '\n'
+        _cmd_agent_print_history "$sess_file"
         continue
         ;;
       /status)
-        local model provider
-        model="$(agent_resolve_model "$agent_id")"
-        provider="$(agent_resolve_provider "$model")"
-        local msg_count
-        msg_count="$(session_count "$sess_file")"
-        printf 'Agent: %s\n' "$agent_id"
-        printf 'Model: %s (%s)\n' "$model" "$provider"
-        printf 'Channel: %s\n' "$channel"
-        printf 'Session messages: %s\n' "$msg_count"
-        printf '\n'
+        _cmd_agent_print_status "$agent_id" "$channel" "$sender"
         continue
         ;;
       /quit|/exit|/q)
-        printf 'Goodbye.\n'
+        printf '%sGoodbye.%s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)"
         break
         ;;
       /*)
-        printf 'Unknown command: %s\n\n' "$input"
+        _cmd_agent_print_rule
+        printf '%sUnknown command:%s %s\n\n' "$(_cmd_agent_color red)" "$(_cmd_agent_color reset)" "$input"
         continue
         ;;
     esac
 
     local response
     response="$(engine_run "$agent_id" "$input" "$channel" "$sender")"
-    if [[ -n "$response" ]]; then
-      printf 'Assistant: %s\n\n' "$response"
-    else
-      printf 'Assistant: [no response]\n\n'
-    fi
+    _cmd_agent_print_response "$response"
   done
 }
 
