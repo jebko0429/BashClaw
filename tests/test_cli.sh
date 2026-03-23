@@ -120,6 +120,19 @@ assert_contains "$result" "Writable temp base"
 assert_contains "$result" "Termux API Commands"
 teardown_test_env
 
+# ---- bashclaw termux enable ----
+
+test_start "bashclaw termux enable initializes state and config"
+setup_test_env
+export TERMUX_VERSION="0.118.0"
+result="$(bash "$CLI" termux enable 2>&1)" || true
+assert_contains "$result" "BashClaw Termux enable"
+assert_contains "$result" "State dir:"
+assert_contains "$result" "Config:"
+assert_file_exists "$BASHCLAW_CONFIG"
+unset TERMUX_VERSION
+teardown_test_env
+
 # ---- bashclaw status ----
 
 test_start "bashclaw status shows state"

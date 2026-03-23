@@ -247,7 +247,7 @@ _bashclaw() {
       COMPREPLY=($(compgen -W "bash zsh" -- "$cur"))
       ;;
     termux)
-      COMPREPLY=($(compgen -W "doctor status paths" -- "$cur"))
+      COMPREPLY=($(compgen -W "enable doctor status paths" -- "$cur"))
       ;;
   esac
 }
@@ -322,7 +322,7 @@ _bashclaw() {
           _values 'subcommand' send
           ;;
         termux)
-          _values 'subcommand' doctor status paths
+          _values 'subcommand' enable doctor status paths
           ;;
         completion)
           _values 'shell' bash zsh

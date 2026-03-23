@@ -200,7 +200,7 @@ dedup_record "perm_key" "value"
 dir="$(_dedup_dir)"
 safe_key="$(printf '%s' "perm_key" | tr -c '[:alnum:]._-' '_' | head -c 200)"
 file="${dir}/${safe_key}.json"
-perms="$(stat -f '%Lp' "$file" 2>/dev/null || stat -c '%a' "$file" 2>/dev/null)"
+perms="$(stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file" 2>/dev/null)"
 assert_eq "$perms" "600"
 teardown_test_env
 

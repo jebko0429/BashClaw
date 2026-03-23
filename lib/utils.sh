@@ -144,7 +144,7 @@ tmpfile() {
   local prefix="${1:-bashclaw}"
   local f
   local tmp_base
-  tmp_base="$(platform_temp_base 2>/dev/null || printf '%s' "${TMPDIR:-${BASHCLAW_STATE_DIR:-${PWD}}/tmp}")"
+  tmp_base="$(platform_temp_base 2>/dev/null || printf '%s' "${TMPDIR:-${PREFIX:-${BASHCLAW_STATE_DIR:-${PWD}}/tmp}}")"
   mkdir -p "$tmp_base" 2>/dev/null || true
   f="$(mktemp "${tmp_base}/${prefix}.XXXXXX" 2>/dev/null)"
   _TMPFILES+=("$f")
@@ -155,7 +155,7 @@ tmpdir() {
   local prefix="${1:-bashclaw}"
   local d
   local tmp_base
-  tmp_base="$(platform_temp_base 2>/dev/null || printf '%s' "${TMPDIR:-${BASHCLAW_STATE_DIR:-${PWD}}/tmp}")"
+  tmp_base="$(platform_temp_base 2>/dev/null || printf '%s' "${TMPDIR:-${PREFIX:-${BASHCLAW_STATE_DIR:-${PWD}}/tmp}}")"
   mkdir -p "$tmp_base" 2>/dev/null || true
   d="$(mktemp -d "${tmp_base}/${prefix}.XXXXXX" 2>/dev/null)"
   _TMPFILES+=("$d")

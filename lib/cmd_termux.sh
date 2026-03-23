@@ -6,6 +6,9 @@ cmd_termux() {
   shift || true
 
   case "$subcommand" in
+    enable)
+      cmd_termux_enable "$@"
+      ;;
     doctor)
       cmd_termux_doctor "$@"
       ;;
@@ -24,6 +27,111 @@ cmd_termux() {
       return 1
       ;;
   esac
+}
+
+cmd_termux_enable() {
+  local setup_storage="false"
+  local install_boot="false"
+  local send_notification="false"
+  local arg
+
+  while [[ $# -gt 0 ]]; do
+    arg="$1"
+    shift || true
+    case "$arg" in
+      --setup-storage)
+        setup_storage="true"
+        ;;
+      --install-boot)
+        install_boot="true"
+        ;;
+      --notify)
+        send_notification="true"
+        ;;
+      -h|--help|help)
+        cat <<'EOF'
+Usage: bashclaw termux enable [--setup-storage] [--install-boot] [--notify]
+
+Options:
+  --setup-storage  Run termux-setup-storage when shared storage is not linked
+  --install-boot   Install the BashClaw Termux boot script
+  --notify         Send a completion notification when Termux API is available
+EOF
+        return 0
+        ;;
+      *)
+        log_error "Unknown termux enable option: $arg"
+        return 1
+        ;;
+    esac
+  done
+
+  if ! platform_is_termux; then
+    printf 'Termux enable requires a Termux runtime.\n'
+    return 1
+  fi
+
+  local created=0
+  local config_created=0
+  local storage_attempted="false"
+  local boot_installed="false"
+  local path
+
+  printf '=== BashClaw Termux enable ===\n'
+
+  for path in \
+    "$BASHCLAW_STATE_DIR" \
+    "${BASHCLAW_STATE_DIR}/agents" \
+    "${BASHCLAW_STATE_DIR}/cache" \
+    "${BASHCLAW_STATE_DIR}/config" \
+    "${BASHCLAW_STATE_DIR}/cron" \
+    "${BASHCLAW_STATE_DIR}/logs" \
+    "${BASHCLAW_STATE_DIR}/memory" \
+    "${BASHCLAW_STATE_DIR}/sessions"; do
+    if [[ ! -d "$path" ]]; then
+      mkdir -p "$path"
+      created=$((created + 1))
+    fi
+  done
+
+  path="$(platform_temp_base 2>/dev/null || true)"
+  if [[ -n "$path" && ! -d "$path" ]]; then
+    mkdir -p "$path"
+    created=$((created + 1))
+  fi
+
+  if [[ ! -f "$(config_path)" ]]; then
+    config_init_default
+    config_created=1
+  fi
+
+  if [[ "$setup_storage" == "true" ]] && [[ ! -e "$(platform_termux_shared_storage)" ]]; then
+    if is_command_available termux-setup-storage; then
+      termux-setup-storage >/dev/null 2>&1 || true
+      storage_attempted="true"
+    else
+      printf '[WARN] termux-setup-storage not available\n'
+    fi
+  fi
+
+  if [[ "$install_boot" == "true" ]]; then
+    _daemon_install_termux "${BASHCLAW_ROOT}/bashclaw" "${BASHCLAW_STATE_DIR}/logs/watchdog.log"
+    boot_installed="true"
+  fi
+
+  if [[ "$send_notification" == "true" ]] && platform_termux_api_available termux-notification; then
+    termux-notification --title "BashClaw" --content "Termux enable complete" >/dev/null 2>&1 || true
+  fi
+
+  printf 'State dir:      %s\n' "$BASHCLAW_STATE_DIR"
+  printf 'Temp base:      %s\n' "$(platform_temp_base 2>/dev/null || printf 'unavailable')"
+  printf 'Created paths:  %s\n' "$created"
+  printf 'Config:         %s\n' "$(if [[ "$config_created" -eq 1 ]]; then printf 'created'; else printf 'existing'; fi)"
+  printf 'Storage setup:  %s\n' "$(if [[ "$storage_attempted" == "true" ]]; then printf 'requested'; else printf 'not requested'; fi)"
+  printf 'Boot script:    %s\n' "$(if [[ "$boot_installed" == "true" ]]; then printf 'installed'; else printf 'not requested'; fi)"
+  printf '\n'
+
+  cmd_termux_doctor
 }
 
 cmd_termux_status() {
@@ -156,9 +264,10 @@ _termux_bool() {
 
 _cmd_termux_usage() {
   cat <<'EOF'
-Usage: bashclaw termux <doctor|status|paths>
+Usage: bashclaw termux <enable|doctor|status|paths>
 
 Subcommands:
+  enable   Initialize Termux-native state, config, and optional boot/storage helpers
   doctor   Check Termux compatibility, temp paths, storage, and API tools
   status   Show the current Termux runtime summary
   paths    Print Termux-related path resolution

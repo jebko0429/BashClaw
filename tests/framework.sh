@@ -19,7 +19,7 @@ _test_tmp_base() {
   fi
 
   local candidate
-  for candidate in "${TMPDIR:-}" "${PWD}/.tmp" "${HOME:-}/.tmp" "/data/local/tmp"; do
+  for candidate in "${TMPDIR:-}" "${PREFIX:-}/tmp" "${PWD}/.tmp" "${HOME:-}/.tmp" "/data/local/tmp" "/tmp"; do
     [[ -z "$candidate" ]] && continue
     if mkdir -p "$candidate" 2>/dev/null; then
       _TEST_TMP_BASE="$candidate"
