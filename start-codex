@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: start-codex [codex args...]
+
+Prompts for which account to use before launching Codex.
+If a previous account is logged in, you can keep it or switch accounts.
+If no account is logged in, it starts a login flow first.
+
+Examples:
+  start-codex
+  start-codex --device-auth
+  start-codex -- --help
+  start-codex "fix this bug"
+EOF
+}
+
+require_codex() {
+  if ! command -v codex >/dev/null 2>&1; then
+    printf 'Error: codex command not found in PATH.\n' >&2
+    exit 1
+  fi
+}
+
+login_status() {
+  codex login status 2>/dev/null || true
+}
+
+has_active_login() {
+  local status
+  status="$(login_status)"
+  if [[ -n "$status" ]] && [[ "$status" != *"Not logged in"* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+prompt_choice() {
+  local prompt="$1"
+  local answer
+  printf '%s' "$prompt"
+  read -r answer
+  printf '%s' "$answer"
+}
+
+run_login_flow() {
+  printf '\nChoose login method:\n'
+  printf '  1) Browser login\n'
+  printf '  2) Device auth\n'
+  printf '  3) API key from stdin\n'
+  printf 'Choice [1]: '
+
+  local choice
+  read -r choice
+  choice="${choice:-1}"
+
+  case "$choice" in
+    1)
+      codex login
+      ;;
+    2)
+      codex login --device-auth
+      ;;
+    3)
+      printf 'Reading API key from stdin for codex login --with-api-key...\n'
+      codex login --with-api-key
+      ;;
+    *)
+      printf 'Invalid choice.\n' >&2
+      return 1
+      ;;
+  esac
+}
+
+main() {
+  require_codex
+
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+  fi
+
+  local codex_args=()
+  if [[ "${1:-}" == "--" ]]; then
+    shift
+  fi
+  codex_args=("$@")
+
+  local status
+  status="$(login_status)"
+
+  if has_active_login; then
+    printf 'Current Codex login:\n%s\n\n' "$status"
+    local action
+    action="$(prompt_choice "Use this account? [Y/n/s=switch]: ")"
+    case "${action:-Y}" in
+      Y|y|"")
+        ;;
+      n|N|s|S)
+        printf 'Switching Codex account...\n'
+        codex logout
+        run_login_flow
+        ;;
+      *)
+        printf 'Invalid choice.\n' >&2
+        exit 1
+        ;;
+    esac
+  else
+    printf 'No active Codex login found.\n'
+    run_login_flow
+  fi
+
+  printf '\nLaunching Codex...\n'
+  if [[ ${#codex_args[@]} -gt 0 ]]; then
+    exec codex "${codex_args[@]}"
+  fi
+  exec codex
+}
+
+main "$@"

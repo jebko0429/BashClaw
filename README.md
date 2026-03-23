@@ -106,6 +106,23 @@ bashclaw agent -m "What is the mass of the sun?"   # one-shot
 bashclaw agent -i                                    # interactive REPL
 ```
 
+## Codex Account Tools
+
+This repo also includes small helper scripts for switching Codex accounts:
+
+```sh
+bash scripts/install-codex-account-tools.sh
+```
+
+That installs:
+
+- `start-codex`
+- `switch-codex-account`
+- `codex-start`
+
+The installer copies the current repo versions into a writable `bin` directory on
+your `PATH`, so you can rerun it after a reinstall to restore the commands.
+
 ## Why BashClaw
 
 ```
