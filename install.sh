@@ -341,14 +341,31 @@ _install_command() {
     return 0
   fi
 
-  # Strategy 1: Symlink to /usr/local/bin (system-wide, always in PATH)
+  local os
+  os="$(_detect_os)"
+
+  # Strategy 1: Prefer Termux prefix bin on Termux installs.
+  if [[ "$os" == "termux" && -n "${PREFIX:-}" ]]; then
+    local termux_bin="${PREFIX}/bin"
+    mkdir -p "$termux_bin"
+    if [[ -w "$termux_bin" ]]; then
+      ln -sf "$bashclaw_bin" "${termux_bin}/bashclaw"
+      _info "Symlinked to ${termux_bin}/bashclaw"
+      if [[ ":$PATH:" != *":${termux_bin}:"* ]]; then
+        export PATH="${termux_bin}:$PATH"
+      fi
+      return 0
+    fi
+  fi
+
+  # Strategy 2: Symlink to /usr/local/bin (system-wide, always in PATH)
   if [[ -d "/usr/local/bin" ]] && [[ -w "/usr/local/bin" ]]; then
     ln -sf "$bashclaw_bin" /usr/local/bin/bashclaw
     _info "Symlinked to /usr/local/bin/bashclaw"
     return 0
   fi
 
-  # Strategy 2: Symlink to ~/.local/bin (XDG standard)
+  # Strategy 3: Symlink to ~/.local/bin (XDG standard)
   local local_bin="${HOME}/.local/bin"
   mkdir -p "$local_bin"
   ln -sf "$bashclaw_bin" "${local_bin}/bashclaw"
@@ -359,7 +376,7 @@ _install_command() {
     return 0
   fi
 
-  # Strategy 3: Add ~/.local/bin to shell configs
+  # Strategy 4: Add ~/.local/bin to shell configs
   _NEEDS_SHELL_RELOAD=true
   _add_path_to_shell_configs "$local_bin"
   export PATH="${local_bin}:$PATH"

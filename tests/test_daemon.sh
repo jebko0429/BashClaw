@@ -46,6 +46,27 @@ case "$result" in
 esac
 teardown_test_env
 
+# ---- watchdog_status includes runtime details ----
+
+test_start "watchdog_status shows runtime and log details"
+setup_test_env
+_source_libs
+ensure_dir "${BASHCLAW_STATE_DIR}/watchdog"
+cat > "${BASHCLAW_STATE_DIR}/watchdog/state" <<'EOF'
+failures=2
+last_fail_ts=10
+last_start_ts=20
+cooldown_until=30
+EOF
+result="$(watchdog_status 2>/dev/null)"
+assert_contains "$result" "Watchdog:"
+assert_contains "$result" "Gateway:"
+assert_contains "$result" "Heartbeats:"
+assert_contains "$result" "State file:"
+assert_contains "$result" "Log file:"
+assert_contains "$result" "Gateway log:"
+teardown_test_env
+
 # ---- daemon_install creates correct file for current OS ----
 
 test_start "daemon_install creates service file"

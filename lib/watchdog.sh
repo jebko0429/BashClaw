@@ -331,6 +331,20 @@ watchdog_cleanup_orphans() {
   rm -f "${BASHCLAW_STATE_DIR:?}/gateway.pid"
 }
 
+_watchdog_heartbeat_running_count() {
+  local count=0
+  local f
+  for f in "$(_watchdog_dir)"/heartbeat_*.pid; do
+    [[ -f "$f" ]] || continue
+    local pid
+    pid="$(cat "$f" 2>/dev/null)"
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      count=$((count + 1))
+    fi
+  done
+  printf '%s' "$count"
+}
+
 watchdog_stop() {
   local pid_file
   pid_file="$(_watchdog_pid_file)"
@@ -367,20 +381,44 @@ watchdog_stop() {
 }
 
 watchdog_status() {
+  _watchdog_state_load
+
   if watchdog_is_running; then
     local pid
     pid="$(cat "$(_watchdog_pid_file)" 2>/dev/null)"
-    printf 'Watchdog: running (pid=%s)\n' "$pid"
+    printf 'Watchdog:    running (pid=%s)
+' "$pid"
   else
-    printf 'Watchdog: stopped\n'
+    printf 'Watchdog:    stopped
+'
   fi
 
   if watchdog_gateway_running; then
     local gw_pid
     gw_pid="$(cat "${BASHCLAW_STATE_DIR:?}/gateway.pid" 2>/dev/null)"
-    printf 'Gateway:  running (pid=%s)\n' "$gw_pid"
+    printf 'Gateway:     running (pid=%s)
+' "$gw_pid"
   else
-    printf 'Gateway:  stopped\n'
+    printf 'Gateway:     stopped
+'
+  fi
+
+  printf 'Heartbeats:  %s running
+' "$(_watchdog_heartbeat_running_count)"
+  printf 'Failures:    %s
+' "${watchdog_failures:-0}"
+  printf 'Cooldown:    %s
+' "${watchdog_cooldown_until:-0}"
+  printf 'State file:  %s
+' "$(_watchdog_state_file)"
+  printf 'Log file:    %s
+' "$(_watchdog_log_file)"
+  printf 'Gateway log: %s
+' "$(_watchdog_gateway_log_file)"
+
+  if platform_is_termux; then
+    printf 'Boot script: %s
+' "$(platform_termux_boot_script)"
   fi
 }
 

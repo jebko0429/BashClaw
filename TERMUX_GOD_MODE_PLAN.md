@@ -200,7 +200,7 @@ Because Android is hostile to long-running background processes, BashClaw should
 - add open/share helpers
 - expose these tools through normal BashClaw tool routing
 
-### Phase 3: Runtime Hardening
+### Phase 3: Runtime Hardening [x]
 
 - improve daemon/watchdog behavior for Termux
 - add boot integration helpers

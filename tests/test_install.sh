@@ -270,10 +270,11 @@ printf '#!/bin/bash\necho test\n' > "$test_dir/bashclaw"
 chmod +x "$test_dir/bashclaw"
 export HOME="$_TEST_TMPDIR"
 (
-  # Remove bashclaw from PATH so it needs to create a symlink
+  # Force non-Termux behavior so this test covers the ~/.local/bin fallback.
   export PATH="/usr/bin:/bin"
   _source_install_functions
   _NO_PATH=false
+  _detect_os() { printf 'linux'; }
   _install_command "$test_dir" 2>/dev/null
   if [[ -L "${HOME}/.local/bin/bashclaw" ]]; then
     exit 0
@@ -283,6 +284,32 @@ export HOME="$_TEST_TMPDIR"
 )
 rc=$?
 assert_eq "$rc" "0" "_install_command should create symlink at ~/.local/bin/bashclaw"
+teardown_test_env
+
+# ---- _install_command on Termux prefers PREFIX/bin ----
+
+test_start "_install_command on Termux uses PREFIX/bin"
+setup_test_env
+test_dir="${_TEST_TMPDIR}/termux_install"
+mkdir -p "$test_dir"
+printf '#!/bin/bash
+echo test
+' > "$test_dir/bashclaw"
+chmod +x "$test_dir/bashclaw"
+result="$(
+  export HOME="$_TEST_TMPDIR"
+  export PREFIX="${_TEST_TMPDIR}/prefix"
+  export PATH="/usr/bin:/bin"
+  mkdir -p "${PREFIX}/bin"
+  _source_install_functions
+  _NO_PATH=false
+  _detect_os() { printf 'termux'; }
+  _install_command "$test_dir" >/dev/null 2>&1
+  if [[ -L "${PREFIX}/bin/bashclaw" ]]; then
+    printf 'ok'
+  fi
+)"
+assert_eq "$result" "ok" "_install_command should prefer PREFIX/bin in Termux"
 teardown_test_env
 
 report_results
