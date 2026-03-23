@@ -50,6 +50,10 @@ _tool_handler() {
     write_file)     echo "tool_write_file" ;;
     list_files)     echo "tool_list_files" ;;
     file_search)    echo "tool_file_search" ;;
+    termux_notify)  echo "tool_termux_notify" ;;
+    termux_clipboard) echo "tool_termux_clipboard" ;;
+    termux_battery) echo "tool_termux_battery" ;;
+    termux_open)    echo "tool_termux_open" ;;
     spawn)          echo "tool_spawn" ;;
     spawn_status)   echo "tool_spawn_status" ;;
     *)
@@ -64,7 +68,7 @@ _tool_handler() {
 }
 
 _tool_list() {
-  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search spawn spawn_status"
+  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_open spawn spawn_status"
 }
 
 # Tool optional flag registry (tools that default to disabled unless explicitly allowed).
@@ -310,10 +314,22 @@ Available tools:
 14. file_search - Search for files matching a name or content pattern.
     Parameters: path (string, required), name (string, optional), content (string, optional), maxResults (number, optional)
 
-15. spawn - Spawn a background subagent for long-running tasks.
+15. termux_notify - Send a Termux notification or toast.
+    Parameters: title (string), message (string, required), type (notification|toast, optional)
+
+16. termux_clipboard - Read from or write to the Termux clipboard.
+    Parameters: action (get|set, required), text (string)
+
+17. termux_battery - Read battery status from Termux API.
+    Parameters: none
+
+18. termux_open - Open or share a URL, file, or text through Android intents.
+    Parameters: target (string, required), action (open|share, optional)
+
+19. spawn - Spawn a background subagent for long-running tasks.
     Parameters: task (string, required), label (string, optional)
 
-16. spawn_status - Check status of a spawned background task.
+20. spawn_status - Check status of a spawned background task.
     Parameters: task_id (string, required)
 TOOLDESC
 }
@@ -370,6 +386,18 @@ ${idx}. ${desc}"
 
   _bridge_tool_desc "agent_message" "agent_message - Send a message to another agent.
    Params: --target_agent <string> --message <string> --from_agent <string>"
+
+  _bridge_tool_desc "termux_notify" "termux_notify - Send a Termux notification or toast.
+   Params: --message <string> --title <string> --type <notification|toast>"
+
+  _bridge_tool_desc "termux_clipboard" "termux_clipboard - Read or write the Termux clipboard.
+   Params: --action <get|set> --text <string>"
+
+  _bridge_tool_desc "termux_battery" "termux_battery - Read battery status from Termux API.
+   Params: none"
+
+  _bridge_tool_desc "termux_open" "termux_open - Open or share text, files, or URLs via Android intents.
+   Params: --target <string> --action <open|share>"
 
   _bridge_tool_desc "spawn" "spawn - Spawn a background subagent for long-running tasks.
    Params: --task <string> --label <string>"
@@ -590,6 +618,52 @@ _tools_build_full_spec() {
           "maxResults": {"type": "number", "description": "Maximum number of results to return."}
         },
         "required": ["path"]
+      }
+    },
+    {
+      "name": "termux_notify",
+      "description": "Send a Termux notification or toast when running in a Termux environment.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string", "description": "Notification title."},
+          "message": {"type": "string", "description": "Notification body text."},
+          "type": {"type": "string", "enum": ["notification", "toast"], "description": "Send a full notification or a toast."}
+        },
+        "required": ["message"]
+      }
+    },
+    {
+      "name": "termux_clipboard",
+      "description": "Read from or write to the Termux clipboard.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {"type": "string", "enum": ["get", "set"], "description": "Clipboard action to perform."},
+          "text": {"type": "string", "description": "Clipboard text to write for set action."}
+        },
+        "required": ["action"]
+      }
+    },
+    {
+      "name": "termux_battery",
+      "description": "Read battery status using the Termux battery API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "termux_open",
+      "description": "Open or share a URL, file path, or text using Termux Android intents.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "target": {"type": "string", "description": "URL, file path, or text payload."},
+          "action": {"type": "string", "enum": ["open", "share"], "description": "Whether to open or share the target."}
+        },
+        "required": ["target"]
       }
     },
     {
@@ -1426,6 +1500,163 @@ EOF
   fi
   jq -nc --arg p "$path" --argjson r "$results" --argjson c "$count" \
     '{path: $p, results: $r, count: $c}'
+}
+
+# ---- Tool: termux_notify ----
+
+tool_termux_notify() {
+  local input="$1"
+  require_command jq "termux_notify tool requires jq"
+
+  local title message type
+  title="$(printf '%s' "$input" | jq -r '.title // "BashClaw"')"
+  message="$(printf '%s' "$input" | jq -r '.message // empty')"
+  type="$(printf '%s' "$input" | jq -r '.type // "notification"')"
+
+  if [[ -z "$message" ]]; then
+    printf '{"error": "message parameter is required"}'
+    return 1
+  fi
+
+  case "$type" in
+    toast)
+      if ! platform_termux_api_available termux-toast; then
+        printf '{"error": "termux-toast not available"}'
+        return 1
+      fi
+      termux-toast "$message" >/dev/null 2>&1 || {
+        printf '{"error": "termux-toast failed"}'
+        return 1
+      }
+      jq -nc --arg m "$message" '{"ok": true, "type": "toast", "message": $m}'
+      ;;
+    notification|"")
+      if ! platform_termux_api_available termux-notification; then
+        printf '{"error": "termux-notification not available"}'
+        return 1
+      fi
+      termux-notification --title "$title" --content "$message" >/dev/null 2>&1 || {
+        printf '{"error": "termux-notification failed"}'
+        return 1
+      }
+      jq -nc --arg t "$title" --arg m "$message" '{"ok": true, "type": "notification", "title": $t, "message": $m}'
+      ;;
+    *)
+      printf '{"error": "unknown notification type"}'
+      return 1
+      ;;
+  esac
+}
+
+# ---- Tool: termux_clipboard ----
+
+tool_termux_clipboard() {
+  local input="$1"
+  require_command jq "termux_clipboard tool requires jq"
+
+  local action text
+  action="$(printf '%s' "$input" | jq -r '.action // empty')"
+  text="$(printf '%s' "$input" | jq -r '.text // empty')"
+
+  case "$action" in
+    get)
+      if ! platform_termux_api_available termux-clipboard-get; then
+        printf '{"error": "termux-clipboard-get not available"}'
+        return 1
+      fi
+      local value
+      value="$(termux-clipboard-get 2>/dev/null)" || {
+        printf '{"error": "termux-clipboard-get failed"}'
+        return 1
+      }
+      jq -nc --arg value "$value" '{"action": "get", "text": $value}'
+      ;;
+    set)
+      if ! platform_termux_api_available termux-clipboard-set; then
+        printf '{"error": "termux-clipboard-set not available"}'
+        return 1
+      fi
+      termux-clipboard-set "$text" >/dev/null 2>&1 || {
+        printf '{"error": "termux-clipboard-set failed"}'
+        return 1
+      }
+      jq -nc --arg value "$text" '{"action": "set", "ok": true, "text": $value}'
+      ;;
+    *)
+      printf '{"error": "action must be get or set"}'
+      return 1
+      ;;
+  esac
+}
+
+# ---- Tool: termux_battery ----
+
+tool_termux_battery() {
+  local input="${1:-{}}"
+  require_command jq "termux_battery tool requires jq"
+  : "$input"
+
+  if ! platform_termux_api_available termux-battery-status; then
+    printf '{"error": "termux-battery-status not available"}'
+    return 1
+  fi
+
+  local result
+  result="$(termux-battery-status 2>/dev/null)" || {
+    printf '{"error": "termux-battery-status failed"}'
+    return 1
+  }
+
+  if printf '%s' "$result" | jq empty 2>/dev/null; then
+    printf '%s' "$result"
+  else
+    jq -nc --arg raw "$result" '{"raw": $raw}'
+  fi
+}
+
+# ---- Tool: termux_open ----
+
+tool_termux_open() {
+  local input="$1"
+  require_command jq "termux_open tool requires jq"
+
+  local target action
+  target="$(printf '%s' "$input" | jq -r '.target // empty')"
+  action="$(printf '%s' "$input" | jq -r '.action // "open"')"
+
+  if [[ -z "$target" ]]; then
+    printf '{"error": "target parameter is required"}'
+    return 1
+  fi
+
+  case "$action" in
+    open|"")
+      if ! platform_termux_api_available termux-open; then
+        printf '{"error": "termux-open not available"}'
+        return 1
+      fi
+      termux-open "$target" >/dev/null 2>&1 || {
+        printf '{"error": "termux-open failed"}'
+        return 1
+      }
+      jq -nc --arg target "$target" '{"ok": true, "action": "open", "target": $target}'
+      ;;
+    share)
+      if ! platform_termux_api_available termux-share; then
+        printf '{"error": "termux-share not available"}'
+        return 1
+      fi
+      termux-share "$target" >/dev/null 2>&1 || {
+        printf '{"error": "termux-share failed"}'
+        return 1
+      }
+      jq -nc --arg target "$target" '{"ok": true, "action": "share", "target": $target}'
+      ;;
+    *)
+      printf '{"error": "action must be open or share"}'
+      return 1
+      ;;
+  esac
 }
 
 # ---- Tool: spawn ----

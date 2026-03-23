@@ -245,6 +245,10 @@ assert_contains "$names" "web_fetch"
 assert_contains "$names" "shell"
 assert_contains "$names" "memory"
 assert_contains "$names" "cron"
+assert_contains "$names" "termux_notify"
+assert_contains "$names" "termux_clipboard"
+assert_contains "$names" "termux_battery"
+assert_contains "$names" "termux_open"
 teardown_test_env
 
 # ---- tool_execute dispatch ----
@@ -254,6 +258,21 @@ setup_test_env
 result="$(tool_execute "memory" '{"action":"list"}')"
 assert_json_valid "$result"
 assert_contains "$result" "keys"
+teardown_test_env
+
+test_start "tool_execute dispatches termux_battery"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+printf '#!/usr/bin/env bash\nprintf '\''{"percentage":88,"status":"DISCHARGING"}'\''\n' > "${mock_dir}/termux-battery-status"
+chmod +x "${mock_dir}/termux-battery-status"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_execute "termux_battery" '{}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+percentage="$(printf '%s' "$result" | jq -r '.percentage')"
+assert_eq "$percentage" "88"
 teardown_test_env
 
 test_start "tool_execute returns error for unknown tool"
@@ -499,6 +518,89 @@ test_start "tool_write_file blocks path traversal with ../"
 setup_test_env
 result="$(tool_write_file '{"path":"/tmp/foo/../../../etc/passwd","content":"bad"}' 2>/dev/null)" || true
 assert_contains "$result" "traversal"
+teardown_test_env
+
+# ---- termux tools ----
+
+test_start "tool_termux_notify sends notification via termux-notification"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+notify_file="${_TEST_TMPDIR}/notify_args.txt"
+printf '#!/usr/bin/env bash\nprintf '\''%%s\n'\'' "$*" > "%s"\n' "$notify_file" > "${mock_dir}/termux-notification"
+chmod +x "${mock_dir}/termux-notification"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_notify '{"title":"Alert","message":"Hello world"}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+ok="$(printf '%s' "$result" | jq -r '.ok')"
+assert_eq "$ok" "true"
+args="$(cat "$notify_file")"
+assert_contains "$args" "--title Alert --content Hello world"
+teardown_test_env
+
+test_start "tool_termux_clipboard get returns clipboard text"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+printf '#!/usr/bin/env bash\nprintf '\''clipboard text'\''\n' > "${mock_dir}/termux-clipboard-get"
+chmod +x "${mock_dir}/termux-clipboard-get"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_clipboard '{"action":"get"}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+text="$(printf '%s' "$result" | jq -r '.text')"
+assert_eq "$text" "clipboard text"
+teardown_test_env
+
+test_start "tool_termux_clipboard set writes clipboard text"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+clipboard_set_file="${_TEST_TMPDIR}/clipboard_set.txt"
+printf '#!/usr/bin/env bash\nprintf '\''%%s'\'' "$1" > "%s"\n' "$clipboard_set_file" > "${mock_dir}/termux-clipboard-set"
+chmod +x "${mock_dir}/termux-clipboard-set"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_clipboard '{"action":"set","text":"clip me"}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+saved="$(cat "$clipboard_set_file")"
+assert_eq "$saved" "clip me"
+teardown_test_env
+
+test_start "tool_termux_open uses termux-open for open action"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+open_target_file="${_TEST_TMPDIR}/open_target.txt"
+printf '#!/usr/bin/env bash\nprintf '\''%%s'\'' "$1" > "%s"\n' "$open_target_file" > "${mock_dir}/termux-open"
+chmod +x "${mock_dir}/termux-open"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_open '{"target":"https://example.com","action":"open"}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+target="$(cat "$open_target_file")"
+assert_eq "$target" "https://example.com"
+teardown_test_env
+
+test_start "tool_termux_open uses termux-share for share action"
+setup_test_env
+mock_dir="${_TEST_TMPDIR}/mock-bin"
+mkdir -p "$mock_dir"
+share_target_file="${_TEST_TMPDIR}/share_target.txt"
+printf '#!/usr/bin/env bash\nprintf '\''%%s'\'' "$1" > "%s"\n' "$share_target_file" > "${mock_dir}/termux-share"
+chmod +x "${mock_dir}/termux-share"
+OLD_PATH="$PATH"
+PATH="${mock_dir}:$PATH"
+result="$(tool_termux_open '{"target":"share text","action":"share"}')"
+PATH="$OLD_PATH"
+assert_json_valid "$result"
+target="$(cat "$share_target_file")"
+assert_eq "$target" "share text"
 teardown_test_env
 
 # ---- tool_list_files lists files in a directory ----
