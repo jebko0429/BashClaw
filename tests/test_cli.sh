@@ -163,6 +163,9 @@ result="$(bash "$CLI" termux recipes 2>&1)" || true
 assert_contains "$result" "BashClaw Termux recipes"
 assert_contains "$result" "battery"
 assert_contains "$result" "clipboard"
+assert_contains "$result" "quiet_mode"
+assert_contains "$result" "daily_digest"
+assert_contains "$result" "connectivity_watchdog"
 teardown_test_env
 
 # ---- bashclaw termux operator ----
@@ -175,5 +178,4 @@ assert_contains "$result" "Termux operator mode enabled"
 profile="$(jq -r '.agents.defaults.tools.profile' "$BASHCLAW_CONFIG")"
 assert_eq "$profile" "termux-operator"
 teardown_test_env
-
 report_results

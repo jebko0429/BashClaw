@@ -240,7 +240,7 @@ Build the first Termux-native slice:
 3. add Termux tools for notification, clipboard, battery, and open/share
 4. make paths and temp handling fully Termux-native
 
-### Phase 6: Operator Recipes and Controls [ ]
+### Phase 6: Operator Recipes and Controls [x]
 
 - add device-control tools for sensors, torch, brightness, volume, vibration, and wakelock
 - expand built-in phone recipes (alerts, quiet mode, daily digest, connectivity watchdog)

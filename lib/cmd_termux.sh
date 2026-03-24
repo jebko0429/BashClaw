@@ -314,6 +314,22 @@ cmd_termux_doctor() {
 
   printf '[INFO] Recommended service strategy: %s\n' "$(platform_termux_service_strategy)"
 
+
+  printf '\n  --- Secrets (.env) ---\n'
+  local env_path env_mode
+  env_path="${BASHCLAW_STATE_DIR}/.env"
+  if [[ -f "$env_path" ]]; then
+    env_mode=$(stat -c '%a' "$env_path" 2>/dev/null || stat -f '%Lp' "$env_path" 2>/dev/null || printf 'unknown')
+    if [[ "$env_mode" =~ ^[0-9]+$ ]] && (( env_mode > 640 )); then
+      printf '[WARN] .env permissions are loose (%s). Recommend chmod 600 %s\n' "$env_mode" "$env_path"
+      warnings=$((warnings + 1))
+    else
+      printf '[OK]   .env permissions: %s\n' "$env_mode"
+    fi
+  else
+    printf '[INFO] .env not found at %s\n' "$env_path"
+  fi
+
   printf '\n  --- Package Tooling ---\n'
   if is_command_available pkg; then
     printf '[OK]   pkg available: %s\n' "$(command -v pkg)"

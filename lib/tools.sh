@@ -1870,7 +1870,10 @@ tool_termux_recipe() {
         {id: "battery", summary: "Summarize battery state and optionally notify when charge is low."},
         {id: "downloads", summary: "List the most recent files from the Termux Downloads path."},
         {id: "clipboard", summary: "Save the current clipboard into BashClaw memory logs."},
-        {id: "connectivity", summary: "Summarize wifi and telephony device connectivity."}
+        {id: "connectivity", summary: "Summarize wifi and telephony device connectivity."},
+        {id: "quiet_mode", summary: "Lower brightness and volume for a quick quiet profile."},
+        {id: "daily_digest", summary: "Battery + connectivity + clipboard preview in one digest."},
+        {id: "connectivity_watchdog", summary: "Check wifi/telephony status and alert on loss."}
       ]}'
       ;;
     describe)
@@ -1886,6 +1889,15 @@ tool_termux_recipe() {
           ;;
         connectivity)
           jq -nc '{recipe: "connectivity", uses: ["termux_wifi", "termux_telephony"], summary: "Combines wifi and telephony details into one connectivity report."}'
+          ;;
+        quiet_mode)
+          jq -nc '{recipe: "quiet_mode", uses: ["termux_brightness", "termux_volume", "termux_vibrate"], summary: "Sets a low-brightness, low-volume profile and gives short haptic feedback."}'
+          ;;
+        daily_digest)
+          jq -nc '{recipe: "daily_digest", uses: ["termux_battery", "termux_wifi", "termux_telephony", "termux_clipboard"], summary: "One-shot digest of battery, connectivity, and clipboard preview."}'
+          ;;
+        connectivity_watchdog)
+          jq -nc '{recipe: "connectivity_watchdog", uses: ["termux_wifi", "termux_telephony", "termux_notify"], summary: "Checks connectivity and notifies when wifi is missing or signal is unknown."}'
           ;;
         *)
           printf '{"error": "unknown recipe"}'
@@ -1942,6 +1954,65 @@ tool_termux_recipe() {
             telephony_json="$(tool_termux_telephony '{}')" || telephony_json='{}'
           fi
           jq -nc --argjson wifi "$wifi_json" --argjson telephony "$telephony_json" '{recipe: "connectivity", wifi: $wifi, telephony: $telephony}'
+          ;;
+        quiet_mode)
+          local brightness volume vibrated
+          brightness="$(tool_termux_brightness '{"brightness":"32"}')" || true
+          volume="$(tool_termux_volume '{"stream":"notification","volume":0}')" || true
+          vibrated=false
+          if platform_termux_api_available termux-vibrate; then
+            tool_termux_vibrate '{"duration":150,"force":false}' >/dev/null 2>&1 && vibrated=true
+          fi
+          jq -nc --argjson brightness "${brightness:-{}}" --argjson volume "${volume:-{}}" --argjson vibrated "$vibrated" '{recipe: "quiet_mode", brightness: $brightness, volume: $volume, vibrated: $vibrated}'
+          ;;
+        daily_digest)
+          local battery_json wifi_json telephony_json clip_json clip_preview
+          battery_json='{}'; wifi_json='{}'; telephony_json='{}'; clip_json='{}'; clip_preview=""
+          if platform_termux_api_available termux-battery-status; then
+            battery_json="$(tool_termux_battery '{}')" || battery_json='{}'
+          fi
+          if platform_termux_api_available termux-wifi-connectioninfo; then
+            wifi_json="$(tool_termux_wifi '{}')" || wifi_json='{}'
+          fi
+          if platform_termux_api_available termux-telephony-deviceinfo; then
+            telephony_json="$(tool_termux_telephony '{}')" || telephony_json='{}'
+          fi
+          if platform_termux_api_available termux-clipboard-get; then
+            clip_json="$(tool_termux_clipboard '{"action":"get"}')" || clip_json='{}'
+            clip_preview="$(printf '%s' "$clip_json" | jq -r '.text // empty' | head -c 120)"
+          fi
+          jq -nc --argjson battery "$battery_json" --argjson wifi "$wifi_json" --argjson telephony "$telephony_json" --arg clip "$clip_preview" '{recipe: "daily_digest", battery: $battery, wifi: $wifi, telephony: $telephony, clipboardPreview: $clip}'
+          ;;
+        connectivity_watchdog)
+          local wifi_json telephony_json degraded notify_msg
+          wifi_json='{}'
+          telephony_json='{}'
+          degraded=false
+          notify_msg=""
+          if platform_termux_api_available termux-wifi-connectioninfo; then
+            wifi_json="$(tool_termux_wifi '{}')" || wifi_json='{}'
+            local state
+            state="$(printf '%s' "$wifi_json" | jq -r '.supplicant_state // .state // empty')"
+            if [[ -z "$state" || "$state" == "" || "$state" == "DISCONNECTED" || "$state" == "INACTIVE" ]]; then
+              degraded=true
+              notify_msg="Wi-Fi disconnected"
+            fi
+          fi
+          if platform_termux_api_available termux-telephony-deviceinfo; then
+            telephony_json="$(tool_termux_telephony '{}')" || telephony_json='{}'
+            local carrier
+            carrier="$(printf '%s' "$telephony_json" | jq -r '.carrier // .network // empty')"
+            if [[ -z "$carrier" || "$carrier" == "unknown" ]]; then
+              degraded=true
+              if [[ -z "$notify_msg" ]]; then
+                notify_msg="Telephony signal unavailable"
+              fi
+            fi
+          fi
+          if [[ "$degraded" == "true" && "$notify" == "true" ]] && platform_termux_api_available termux-notification; then
+            termux-notification --title 'BashClaw connectivity' --content "${notify_msg:-Connectivity degraded}" >/dev/null 2>&1 || true
+          fi
+          jq -nc --argjson wifi "$wifi_json" --argjson telephony "$telephony_json" --argjson degraded "$degraded" '{recipe: "connectivity_watchdog", wifi: $wifi, telephony: $telephony, degraded: $degraded}'
           ;;
         *)
           printf '{"error": "unknown recipe"}'
