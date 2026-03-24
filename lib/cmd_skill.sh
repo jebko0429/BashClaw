@@ -9,6 +9,9 @@ cmd_skill() {
     list) _cmd_skill_list "$@" ;;
     load) _cmd_skill_load "$@" ;;
     import|import-clawhub) _cmd_skill_import "$@" ;;
+    enable) _cmd_skill_enable "$@" ;;
+    disable) _cmd_skill_disable "$@" ;;
+    remove|rm|delete) _cmd_skill_remove "$@" ;;
     -h|--help|help|"") _cmd_skill_usage ;;
     *)
       log_error "Unknown skill subcommand: $subcommand"
@@ -24,6 +27,9 @@ _cmd_skill_usage() {
   printf '  %-22s %s\n' 'list AGENT' 'List installed skills for an agent as JSON'
   printf '  %-22s %s\n' 'load AGENT NAME' 'Print the SKILL.md content for a skill'
   printf '  %-22s %s\n' 'import AGENT SOURCE' 'Import a ClawHub-style skill directory'
+  printf '  %-22s %s\n' 'enable AGENT NAME' 'Enable an installed skill'
+  printf '  %-22s %s\n' 'disable AGENT NAME' 'Disable an installed skill'
+  printf '  %-22s %s\n' 'remove AGENT NAME' 'Remove an installed skill'
   printf '\nOptions for import:\n'
   printf '  %-22s %s\n' '--name NAME' 'Override the imported skill name'
   printf '  %-22s %s\n' '--force' 'Replace an existing skill with the same name'
@@ -90,4 +96,43 @@ _cmd_skill_import() {
   fi
 
   skill_import "$agent_id" "$source_dir" "$requested_name" "$force"
+}
+
+_cmd_skill_enable() {
+  local agent_id="${1:-}"
+  local skill_name="${2:-}"
+
+  if [[ -z "$agent_id" || -z "$skill_name" ]]; then
+    log_error "Agent id and skill name are required"
+    printf 'Usage: bashclaw skill enable AGENT NAME\n'
+    return 1
+  fi
+
+  skill_enable "$agent_id" "$skill_name"
+}
+
+_cmd_skill_disable() {
+  local agent_id="${1:-}"
+  local skill_name="${2:-}"
+
+  if [[ -z "$agent_id" || -z "$skill_name" ]]; then
+    log_error "Agent id and skill name are required"
+    printf 'Usage: bashclaw skill disable AGENT NAME\n'
+    return 1
+  fi
+
+  skill_disable "$agent_id" "$skill_name"
+}
+
+_cmd_skill_remove() {
+  local agent_id="${1:-}"
+  local skill_name="${2:-}"
+
+  if [[ -z "$agent_id" || -z "$skill_name" ]]; then
+    log_error "Agent id and skill name are required"
+    printf 'Usage: bashclaw skill remove AGENT NAME\n'
+    return 1
+  fi
+
+  skill_remove "$agent_id" "$skill_name"
 }

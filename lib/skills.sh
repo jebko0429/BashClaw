@@ -42,7 +42,7 @@ _skill_parse_frontmatter() {
   done < "$file"
 }
 
-# Get a single frontmatter field value from SKILL.md
+# Get a single frontmatter field value from SKILL.md.
 _skill_get_frontmatter_field() {
   local file="$1"
   local field="$2"
@@ -146,6 +146,46 @@ _skill_normalize_source_dir() {
   )
 }
 
+_skill_dir() {
+  local agent_id="$1"
+  local skill_name="$2"
+  local safe_name
+  safe_name="$(sanitize_key "$skill_name" | tr '[:upper:]' '[:lower:]')"
+  printf '%s/agents/%s/skills/%s' "${BASHCLAW_STATE_DIR:?BASHCLAW_STATE_DIR not set}" "$agent_id" "$safe_name"
+}
+
+_skill_is_enabled() {
+  local skill_dir="$1"
+  local skill_json="${skill_dir}/skill.json"
+
+  require_command jq "skill enable checks require jq"
+
+  if [[ ! -f "$skill_json" ]] || ! jq empty < "$skill_json" 2>/dev/null; then
+    printf 'true'
+    return 0
+  fi
+
+  jq -r 'if has("enabled") then (.enabled | if . then "true" else "false" end) else "true" end' < "$skill_json"
+}
+
+_skill_set_enabled() {
+  local skill_dir="$1"
+  local enabled="$2"
+  local skill_json="${skill_dir}/skill.json"
+  local meta='{}'
+
+  require_command jq "skill enable requires jq"
+
+  if [[ -f "$skill_json" ]] && jq empty < "$skill_json" 2>/dev/null; then
+    meta="$(jq '.' < "$skill_json")"
+  fi
+
+  jq -nc \
+    --argjson existing "$meta" \
+    --arg enabled "$enabled" \
+    '$existing + {enabled: ($enabled == "true")}' > "$skill_json"
+}
+
 # Check if a skill's requirements are met.
 # Returns 0 if all requirements are satisfied, 1 otherwise.
 # Sets _SKILL_REQ_MISSING with a description of what's missing.
@@ -187,7 +227,7 @@ skill_check_requirements() {
       var="$(printf '%s' "$var" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
       if [[ -n "$var" ]]; then
         local var_val
-        eval "var_val="\${${var}:-}""
+        eval "var_val=\"\${${var}:-}\""
         if [[ -z "$var_val" ]]; then
           _SKILL_REQ_MISSING="missing env var: $var"
           IFS="$old_ifs"
@@ -232,7 +272,7 @@ skill_import() {
   fi
 
   local safe_name
-  safe_name="$(sanitize_key "$display_name")"
+  safe_name="$(sanitize_key "$display_name" | tr '[:upper:]' '[:lower:]')"
   if [[ -z "$safe_name" ]]; then
     log_error "Unable to derive a valid skill name from: $display_name"
     return 1
@@ -285,7 +325,8 @@ skill_import() {
       source: $source,
       source_path: $source_path,
       adapted_for: $adapted_for,
-      imported_at: $imported_at
+      imported_at: $imported_at,
+      enabled: (if ($existing | has("enabled")) then $existing.enabled else true end)
     }' > "${tmp_dir}/skill.json"
 
   if [[ -e "$dest_dir" ]]; then
@@ -391,6 +432,9 @@ skills_list() {
       requirements_missing="$_SKILL_REQ_MISSING"
     fi
 
+    local enabled
+    enabled="$(_skill_is_enabled "$skill_dir")"
+
     local always_flag
     always_flag="$(_skill_get_frontmatter_field "$skill_md" "always")"
 
@@ -401,8 +445,9 @@ skills_list() {
       --argjson t "$tags" \
       --arg rm "$requirements_met" \
       --arg rmsg "$requirements_missing" \
+      --arg enabled "$enabled" \
       --arg af "${always_flag:-false}" \
-      '{name: $n, display_name: (if $dn == "" then $n else $dn end), description: $d, tags: $t, requirements_met: ($rm == "true"), requirements_missing: $rmsg, always: ($af == "true")}')"$'\n'
+      '{name: $n, display_name: (if $dn == "" then $n else $dn end), description: $d, tags: $t, requirements_met: ($rm == "true"), requirements_missing: $rmsg, enabled: ($enabled == "true"), always: ($af == "true")}')"$'\n'
     idx=$((idx + 1))
   done
 
@@ -422,7 +467,7 @@ skills_load() {
   local force="${3:-false}"
 
   local safe_name
-  safe_name="$(sanitize_key "$skill_name")"
+  safe_name="$(sanitize_key "$skill_name" | tr '[:upper:]' '[:lower:]')"
 
   local skill_dir="${BASHCLAW_STATE_DIR:?BASHCLAW_STATE_DIR not set}/agents/${agent_id}/skills/${safe_name}"
   local skill_md="${skill_dir}/SKILL.md"
@@ -433,6 +478,10 @@ skills_load() {
   fi
 
   if [[ "$force" != "true" ]]; then
+    if [[ "$(_skill_is_enabled "$skill_dir")" != "true" ]]; then
+      log_warn "Skill '$skill_name' is disabled"
+      return 1
+    fi
     if ! skill_check_requirements "$skill_dir"; then
       log_warn "Skill '$skill_name' requirements not met: $_SKILL_REQ_MISSING"
       return 1
@@ -440,6 +489,51 @@ skills_load() {
   fi
 
   cat "$skill_md"
+}
+
+skill_enable() {
+  local agent_id="${1:?agent_id required}"
+  local skill_name="${2:?skill_name required}"
+  local skill_dir
+  skill_dir="$(_skill_dir "$agent_id" "$skill_name")"
+
+  if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
+    log_error "Skill not found: $skill_name for agent $agent_id"
+    return 1
+  fi
+
+  _skill_set_enabled "$skill_dir" "true"
+  jq -nc --arg agent "$agent_id" --arg name "$(basename "$skill_dir")" '{agent: $agent, name: $name, enabled: true}'
+}
+
+skill_disable() {
+  local agent_id="${1:?agent_id required}"
+  local skill_name="${2:?skill_name required}"
+  local skill_dir
+  skill_dir="$(_skill_dir "$agent_id" "$skill_name")"
+
+  if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
+    log_error "Skill not found: $skill_name for agent $agent_id"
+    return 1
+  fi
+
+  _skill_set_enabled "$skill_dir" "false"
+  jq -nc --arg agent "$agent_id" --arg name "$(basename "$skill_dir")" '{agent: $agent, name: $name, enabled: false}'
+}
+
+skill_remove() {
+  local agent_id="${1:?agent_id required}"
+  local skill_name="${2:?skill_name required}"
+  local skill_dir
+  skill_dir="$(_skill_dir "$agent_id" "$skill_name")"
+
+  if [[ ! -d "$skill_dir" ]]; then
+    log_error "Skill not found: $skill_name for agent $agent_id"
+    return 1
+  fi
+
+  rm -rf "$skill_dir"
+  jq -nc --arg agent "$agent_id" --arg name "$(basename "$skill_dir")" '{agent: $agent, name: $name, removed: true}'
 }
 
 # Generate a skills availability section for injection into the system prompt.
@@ -452,6 +546,7 @@ skills_inject_prompt() {
 
   local skills_json
   skills_json="$(skills_list "$agent_id")"
+  skills_json="$(printf '%s' "$skills_json" | jq '[.[] | select(.enabled != false)]')"
 
   local count
   count="$(printf '%s' "$skills_json" | jq 'length')"

@@ -194,4 +194,27 @@ assert_json_valid "$result"
 listed="$(bash "$CLI" skill list main 2>&1)"
 assert_contains "$listed" "Device Helper"
 teardown_test_env
+
+# ---- bashclaw skill disable/enable/remove ----
+
+test_start "bashclaw skill disable enable and remove manage lifecycle"
+setup_test_env
+source_skill="${BASHCLAW_STATE_DIR}/life_skill"
+mkdir -p "$source_skill"
+printf '# Lifecycle
+Skill lifecycle test.
+' > "${source_skill}/SKILL.md"
+bash "$CLI" skill import main "$source_skill" >/dev/null 2>&1
+result="$(bash "$CLI" skill disable main lifecycle 2>&1)"
+assert_contains "$result" '"enabled":false'
+listed="$(bash "$CLI" skill list main 2>&1)"
+assert_contains "$listed" '"enabled": false'
+enable_result="$(bash "$CLI" skill enable main lifecycle 2>&1)"
+assert_contains "$enable_result" '"enabled":true'
+remove_result="$(bash "$CLI" skill remove main lifecycle 2>&1)"
+assert_contains "$remove_result" '"removed":true'
+final_list="$(bash "$CLI" skill list main 2>&1)"
+assert_eq "$final_list" "[]"
+teardown_test_env
+
 report_results

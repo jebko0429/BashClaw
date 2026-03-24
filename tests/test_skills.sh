@@ -224,4 +224,44 @@ assert_eq "$tag0" "web"
 assert_eq "$desc" "Original description"
 teardown_test_env
 
+# ---- skill_disable hides a skill from load and prompt injection ----
+
+test_start "skill_disable blocks load and prompt injection until re-enabled"
+setup_test_env
+_source_libs
+skills_dir="${BASHCLAW_STATE_DIR}/agents/main/skills/mobile"
+mkdir -p "$skills_dir"
+printf '# Mobile
+Android helper skill.
+' > "${skills_dir}/SKILL.md"
+skill_disable "main" "mobile" >/dev/null
+listed="$(skills_list "main")"
+enabled="$(printf '%s' "$listed" | jq -r '.[0].enabled')"
+assert_eq "$enabled" "false"
+set +e
+skills_load "main" "mobile" >/dev/null 2>&1
+rc=$?
+set -e
+assert_ne "$rc" "0"
+injected="$(skills_inject_prompt "main")" || injected=""
+assert_not_contains "$injected" "Mobile"
+skill_enable "main" "mobile" >/dev/null
+loaded="$(skills_load "main" "mobile")"
+assert_contains "$loaded" "Mobile"
+teardown_test_env
+
+# ---- skill_remove deletes the installed skill directory ----
+
+test_start "skill_remove deletes installed skill"
+setup_test_env
+_source_libs
+skills_dir="${BASHCLAW_STATE_DIR}/agents/main/skills/tmp_skill"
+mkdir -p "$skills_dir"
+printf '# Temp
+' > "${skills_dir}/SKILL.md"
+result="$(skill_remove "main" "tmp_skill")"
+assert_json_valid "$result"
+assert_file_not_exists "${skills_dir}/SKILL.md"
+teardown_test_env
+
 report_results
