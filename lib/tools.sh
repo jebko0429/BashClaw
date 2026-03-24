@@ -18,7 +18,7 @@ tools_resolve_profile() {
       echo "web_fetch web_search memory session_status"
       ;;
     coding)
-      echo "web_fetch web_search memory session_status shell read_file write_file list_files file_search"
+      echo "web_fetch web_search memory session_status shell read_file write_file list_files file_search code_analyze"
       ;;
     messaging)
       echo "web_fetch web_search memory session_status message agent_message agents_list"
@@ -53,6 +53,7 @@ _tool_handler() {
     write_file)     echo "tool_write_file" ;;
     list_files)     echo "tool_list_files" ;;
     file_search)    echo "tool_file_search" ;;
+    code_analyze)   echo "tool_code_analyze" ;;
     termux_notify)  echo "tool_termux_notify" ;;
     termux_clipboard) echo "tool_termux_clipboard" ;;
     termux_sms)    echo "tool_termux_sms" ;;
@@ -83,7 +84,7 @@ _tool_handler() {
 }
 
 _tool_list() {
-  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_sms termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe spawn spawn_status"
+  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search code_analyze termux_notify termux_clipboard termux_sms termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe spawn spawn_status"
 }
 
 # Tool optional flag registry (tools that default to disabled unless explicitly allowed).
@@ -329,54 +330,57 @@ Available tools:
 14. file_search - Search for files matching a name or content pattern.
     Parameters: path (string, required), name (string, optional), content (string, optional), maxResults (number, optional)
 
-15. termux_notify - Send a Termux notification or toast.
+15. code_analyze - Analyze a source file or directory using an optional Python helper.
+    Parameters: path (string, required), language (string, optional), maxItems (number, optional)
+
+16. termux_notify - Send a Termux notification or toast.
     Parameters: title (string), message (string, required), type (notification|toast, optional)
 
-16. termux_clipboard - Read from or write to the Termux clipboard.
+17. termux_clipboard - Read from or write to the Termux clipboard.
     Parameters: action (get|set, required), text (string)
 
-17. termux_sms - Send an SMS via Termux API.
+18. termux_sms - Send an SMS via Termux API.
     Parameters: to (string, required), message (string, required)
 
-18. termux_battery - Read battery status from Termux API.
+19. termux_battery - Read battery status from Termux API.
     Parameters: none
 
-19. termux_wifi - Read wifi connection details from Termux API.
+20. termux_wifi - Read wifi connection details from Termux API.
     Parameters: none
 
-20. termux_location - Read location details from Termux API.
+21. termux_location - Read location details from Termux API.
     Parameters: provider (gps|network|passive, optional), request (once|last, optional)
 
-21. termux_telephony - Read telephony and carrier details from Termux API.
+22. termux_telephony - Read telephony and carrier details from Termux API.
     Parameters: none
 
-22. termux_camera - Capture a photo with Termux API.
+23. termux_camera - Capture a photo with Termux API.
     Parameters: path (string, optional), cameraId (number, optional)
 
-23. termux_open - Open or share a URL, file, or text through Android intents.
+24. termux_open - Open or share a URL, file, or text through Android intents.
     Parameters: target (string, required), action (open|share, optional)
 
-24. termux_sensor - Read device sensors (accelerometer, gyroscope, light, etc.).
+25. termux_sensor - Read device sensors (accelerometer, gyroscope, light, etc.).
    Parameters: sensor (string, optional), delay (number, optional)
 
-25. termux_brightness - Get or set screen brightness.
+26. termux_brightness - Get or set screen brightness.
    Parameters: brightness (number 0-255 or "auto", optional)
 
-26. termux_volume - Get or set media volume.
+27. termux_volume - Get or set media volume.
    Parameters: stream (string, optional), volume (number, optional)
 
-27. termux_torch - Control device flashlight.
+28. termux_torch - Control device flashlight.
    Parameters: state (on|off|toggle, optional)
 
-28. termux_vibrate - Trigger device vibration.
+29. termux_vibrate - Trigger device vibration.
    Parameters: duration (number, optional), force (boolean, optional)
 
-29. termux_wakelock - Control device wake lock.
+30. termux_wakelock - Control device wake lock.
    Parameters: action (acquire|release|status, optional)
-30. termux_recipe - Run or inspect a built-in Termux workflow recipe.
+31. termux_recipe - Run or inspect a built-in Termux workflow recipe.
     Parameters: action (list|describe|run, optional), recipe (battery|downloads|clipboard|connectivity, optional), limit (number, optional), notify (boolean, optional)
 
-31. spawn - Spawn a background subagent for long-running tasks.
+32. spawn - Spawn a background subagent for long-running tasks.
     Parameters: task (string, required), label (string, optional)
 
 32. spawn_status - Check status of a spawned background task.
@@ -437,6 +441,9 @@ ${idx}. ${desc}"
 
   _bridge_tool_desc "agent_message" "agent_message - Send a message to another agent.
    Params: --target_agent <string> --message <string> --from_agent <string>"
+
+  _bridge_tool_desc "code_analyze" "code_analyze - Analyze a source file or directory using the optional Python helper.
+   Params: --path <string> --language <string> --maxItems <number>"
 
   _bridge_tool_desc "termux_notify" "termux_notify - Send a Termux notification or toast.
    Params: --message <string> --title <string> --type <notification|toast>"
@@ -691,6 +698,19 @@ _tools_build_full_spec() {
           "name": {"type": "string", "description": "Filename pattern to match (glob)."},
           "content": {"type": "string", "description": "Search for files containing this text."},
           "maxResults": {"type": "number", "description": "Maximum number of results to return."}
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "name": "code_analyze",
+      "description": "Analyze a source file or directory using an optional Python helper.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "description": "File or directory path to analyze."},
+          "language": {"type": "string", "description": "Optional language hint such as python or typescript."},
+          "maxItems": {"type": "number", "description": "Maximum number of symbols or sample files to return."}
         },
         "required": ["path"]
       }
@@ -1643,6 +1663,64 @@ EOF
   fi
   jq -nc --arg p "$path" --argjson r "$results" --argjson c "$count" \
     '{path: $p, results: $r, count: $c}'
+}
+
+# ---- Tool: code_analyze ----
+
+tool_code_analyze() {
+  local input="$1"
+  require_command jq "code_analyze tool requires jq"
+
+  local path language max_items
+  path="$(printf '%s' "$input" | jq -r '.path // empty')"
+  language="$(printf '%s' "$input" | jq -r '.language // empty')"
+  max_items="$(printf '%s' "$input" | jq -r '.maxItems // empty')"
+  max_items="${max_items:-25}"
+
+  if [[ -z "$path" ]]; then
+    printf '{"error": "path parameter is required"}'
+    return 1
+  fi
+
+  if [[ "$path" != /* ]]; then
+    local workspace="${BASHCLAW_TOOL_WORKSPACE:-$(pwd)}"
+    path="${workspace}/${path}"
+  fi
+
+  if [[ ! -e "$path" ]]; then
+    jq -nc --arg p "$path" '{error: "path not found", path: $p}'
+    return 1
+  fi
+
+  local python_bin=""
+  if is_command_available python3; then
+    python_bin="python3"
+  elif is_command_available python; then
+    python_bin="python"
+  else
+    printf '{"error": "python3 not available"}'
+    return 1
+  fi
+
+  local helper="${BASHCLAW_ROOT}/python_tools/code_analyze.py"
+  if [[ ! -f "$helper" ]]; then
+    jq -nc --arg p "$helper" '{error: "helper not found", helper: $p}'
+    return 1
+  fi
+
+  local payload result
+  payload="$(jq -nc --arg p "$path" --arg l "$language" --argjson m "$max_items" '{path:$p, language:$l, maxItems:$m}')"
+  result="$(printf '%s' "$payload" | "$python_bin" "$helper" 2>/dev/null)" || {
+    printf '{"error": "code analysis failed"}'
+    return 1
+  }
+
+  if ! printf '%s' "$result" | jq empty >/dev/null 2>&1; then
+    printf '{"error": "invalid analyzer output"}'
+    return 1
+  fi
+
+  printf '%s' "$result"
 }
 
 # ---- Tool: termux_notify ----

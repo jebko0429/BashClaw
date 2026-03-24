@@ -254,6 +254,7 @@ assert_contains "$names" "termux_telephony"
 assert_contains "$names" "termux_camera"
 assert_contains "$names" "termux_open"
 assert_contains "$names" "termux_recipe"
+assert_contains "$names" "code_analyze"
 teardown_test_env
 
 # ---- tool_execute dispatch ----
@@ -673,6 +674,58 @@ found_path="$(printf '%s' "$result" | jq -r '.results[0].path')"
 assert_contains "$found_path" "doc1.txt"
 teardown_test_env
 
+# ---- tool_code_analyze analyzes source files and directories ----
+
+test_start "tool_code_analyze analyzes a python file"
+setup_test_env
+source_file="${_TEST_TMPDIR}/sample_module.py"
+cat > "$source_file" <<'EOF'
+import os
+
+class Greeter:
+    def hello(self):
+        return "hi"
+
+def helper():
+    return os.getcwd()
+
+if __name__ == "__main__":
+    print(helper())
+EOF
+result="$(tool_code_analyze "$(jq -nc --arg p "$source_file" '{path:$p}')")"
+assert_json_valid "$result"
+kind="$(printf '%s' "$result" | jq -r '.kind')"
+assert_eq "$kind" "file"
+language="$(printf '%s' "$result" | jq -r '.language')"
+assert_eq "$language" "python"
+functions="$(printf '%s' "$result" | jq -r '[.analysis.functions[].name] | join(",")')"
+assert_contains "$functions" "helper"
+classes="$(printf '%s' "$result" | jq -r '[.analysis.classes[].name] | join(",")')"
+assert_contains "$classes" "Greeter"
+main_guard="$(printf '%s' "$result" | jq -r '.analysis.has_main_guard')"
+assert_eq "$main_guard" "true"
+teardown_test_env
+
+test_start "tool_code_analyze summarizes a directory"
+setup_test_env
+project_dir="${_TEST_TMPDIR}/project"
+mkdir -p "$project_dir/src"
+printf '{"name":"demo"}
+' > "$project_dir/package.json"
+printf 'print("ok")
+' > "$project_dir/src/app.py"
+result="$(tool_code_analyze "$(jq -nc --arg p "$project_dir" '{path:$p}')")"
+assert_json_valid "$result"
+kind="$(printf '%s' "$result" | jq -r '.kind')"
+assert_eq "$kind" "directory"
+file_count="$(printf '%s' "$result" | jq -r '.file_count')"
+assert_ge "$file_count" 2
+key_files="$(printf '%s' "$result" | jq -r '[.key_files[]?] | join(",")')"
+assert_contains "$key_files" "package.json"
+languages="$(printf '%s' "$result" | jq -r '.languages | keys | join(",")')"
+assert_contains "$languages" "python"
+teardown_test_env
+
 # ---- tools_resolve_profile returns correct tools ----
 
 test_start "tools_resolve_profile returns correct tools for coding profile"
@@ -682,6 +735,7 @@ assert_contains "$result" "shell"
 assert_contains "$result" "read_file"
 assert_contains "$result" "write_file"
 assert_contains "$result" "memory"
+assert_contains "$result" "code_analyze"
 teardown_test_env
 
 test_start "tools_resolve_profile returns correct tools for minimal profile"
