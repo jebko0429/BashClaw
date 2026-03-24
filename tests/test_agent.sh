@@ -232,6 +232,8 @@ config_load
 result="$(agent_build_system_prompt "main")"
 assert_contains "$result" "Coding workflow"
 assert_contains "$result" "code_analyze"
+assert_contains "$result" "find_symbols"
+assert_contains "$result" "find_references"
 assert_contains "$result" "suggest_tests"
 teardown_test_env
 

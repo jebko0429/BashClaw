@@ -256,6 +256,8 @@ assert_contains "$names" "termux_open"
 assert_contains "$names" "termux_recipe"
 assert_contains "$names" "code_analyze"
 assert_contains "$names" "suggest_tests"
+assert_contains "$names" "find_symbols"
+assert_contains "$names" "find_references"
 teardown_test_env
 
 # ---- tool_execute dispatch ----
@@ -727,6 +729,28 @@ languages="$(printf '%s' "$result" | jq -r '.languages | keys | join(",")')"
 assert_contains "$languages" "python"
 teardown_test_env
 
+# ---- tool_find_symbols and tool_find_references support code navigation ----
+
+test_start "tool_find_symbols locates bash function definitions"
+setup_test_env
+result="$(tool_find_symbols "$(jq -nc --arg p "/data/data/com.termux/files/home/BashClaw/lib/tools.sh" --arg q "tool_code_analyze" '{path:$p,query:$q}')")"
+assert_json_valid "$result"
+count="$(printf '%s' "$result" | jq -r '.count')"
+assert_ge "$count" 1
+name="$(printf '%s' "$result" | jq -r '.symbols[0].name')"
+assert_eq "$name" "tool_code_analyze"
+teardown_test_env
+
+test_start "tool_find_references locates symbol usage across repo"
+setup_test_env
+result="$(tool_find_references "$(jq -nc --arg s "tool_code_analyze" --arg p "/data/data/com.termux/files/home/BashClaw" '{symbol:$s,path:$p}')")"
+assert_json_valid "$result"
+count="$(printf '%s' "$result" | jq -r '.count')"
+assert_ge "$count" 1
+paths="$(printf '%s' "$result" | jq -r '[.matches[].path] | join(",")')"
+assert_contains "$paths" "lib/tools.sh"
+teardown_test_env
+
 # ---- tool_suggest_tests recommends likely test targets ----
 
 test_start "tool_suggest_tests maps lib tools to test_tools"
@@ -760,6 +784,8 @@ assert_contains "$result" "write_file"
 assert_contains "$result" "memory"
 assert_contains "$result" "code_analyze"
 assert_contains "$result" "suggest_tests"
+assert_contains "$result" "find_symbols"
+assert_contains "$result" "find_references"
 teardown_test_env
 
 test_start "tools_resolve_profile returns correct tools for minimal profile"

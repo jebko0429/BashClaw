@@ -18,7 +18,7 @@ tools_resolve_profile() {
       echo "web_fetch web_search memory session_status"
       ;;
     coding)
-      echo "web_fetch web_search memory session_status shell read_file write_file list_files file_search code_analyze suggest_tests"
+      echo "web_fetch web_search memory session_status shell read_file write_file list_files file_search code_analyze suggest_tests find_symbols find_references"
       ;;
     messaging)
       echo "web_fetch web_search memory session_status message agent_message agents_list"
@@ -55,6 +55,8 @@ _tool_handler() {
     file_search)    echo "tool_file_search" ;;
     code_analyze)   echo "tool_code_analyze" ;;
     suggest_tests)  echo "tool_suggest_tests" ;;
+    find_symbols)   echo "tool_find_symbols" ;;
+    find_references) echo "tool_find_references" ;;
     termux_notify)  echo "tool_termux_notify" ;;
     termux_clipboard) echo "tool_termux_clipboard" ;;
     termux_sms)    echo "tool_termux_sms" ;;
@@ -85,7 +87,7 @@ _tool_handler() {
 }
 
 _tool_list() {
-  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search code_analyze suggest_tests termux_notify termux_clipboard termux_sms termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe spawn spawn_status"
+  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search code_analyze suggest_tests find_symbols find_references termux_notify termux_clipboard termux_sms termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe spawn spawn_status"
 }
 
 # Tool optional flag registry (tools that default to disabled unless explicitly allowed).
@@ -337,57 +339,63 @@ Available tools:
 16. suggest_tests - Suggest likely test files for one or more changed paths.
     Parameters: path (string, optional), paths (array, optional)
 
-17. termux_notify - Send a Termux notification or toast.
+17. find_symbols - Find symbol definitions in a file or directory.
+    Parameters: path (string, required), query (string, optional), maxItems (number, optional)
+
+18. find_references - Find references to a symbol across a repo or directory.
+    Parameters: symbol (string, required), path (string, optional), maxMatches (number, optional)
+
+19. termux_notify - Send a Termux notification or toast.
     Parameters: title (string), message (string, required), type (notification|toast, optional)
 
-18. termux_clipboard - Read from or write to the Termux clipboard.
+20. termux_clipboard - Read from or write to the Termux clipboard.
     Parameters: action (get|set, required), text (string)
 
-19. termux_sms - Send an SMS via Termux API.
+21. termux_sms - Send an SMS via Termux API.
     Parameters: to (string, required), message (string, required)
 
-20. termux_battery - Read battery status from Termux API.
+22. termux_battery - Read battery status from Termux API.
     Parameters: none
 
-21. termux_wifi - Read wifi connection details from Termux API.
+23. termux_wifi - Read wifi connection details from Termux API.
     Parameters: none
 
-22. termux_location - Read location details from Termux API.
+24. termux_location - Read location details from Termux API.
     Parameters: provider (gps|network|passive, optional), request (once|last, optional)
 
-23. termux_telephony - Read telephony and carrier details from Termux API.
+25. termux_telephony - Read telephony and carrier details from Termux API.
     Parameters: none
 
-24. termux_camera - Capture a photo with Termux API.
+26. termux_camera - Capture a photo with Termux API.
     Parameters: path (string, optional), cameraId (number, optional)
 
-25. termux_open - Open or share a URL, file, or text through Android intents.
+27. termux_open - Open or share a URL, file, or text through Android intents.
     Parameters: target (string, required), action (open|share, optional)
 
-26. termux_sensor - Read device sensors (accelerometer, gyroscope, light, etc.).
+28. termux_sensor - Read device sensors (accelerometer, gyroscope, light, etc.).
    Parameters: sensor (string, optional), delay (number, optional)
 
-27. termux_brightness - Get or set screen brightness.
+29. termux_brightness - Get or set screen brightness.
    Parameters: brightness (number 0-255 or "auto", optional)
 
-28. termux_volume - Get or set media volume.
+30. termux_volume - Get or set media volume.
    Parameters: stream (string, optional), volume (number, optional)
 
-29. termux_torch - Control device flashlight.
+31. termux_torch - Control device flashlight.
    Parameters: state (on|off|toggle, optional)
 
-30. termux_vibrate - Trigger device vibration.
+32. termux_vibrate - Trigger device vibration.
    Parameters: duration (number, optional), force (boolean, optional)
 
-31. termux_wakelock - Control device wake lock.
+33. termux_wakelock - Control device wake lock.
    Parameters: action (acquire|release|status, optional)
-32. termux_recipe - Run or inspect a built-in Termux workflow recipe.
+34. termux_recipe - Run or inspect a built-in Termux workflow recipe.
     Parameters: action (list|describe|run, optional), recipe (battery|downloads|clipboard|connectivity, optional), limit (number, optional), notify (boolean, optional)
 
-33. spawn - Spawn a background subagent for long-running tasks.
+35. spawn - Spawn a background subagent for long-running tasks.
     Parameters: task (string, required), label (string, optional)
 
-34. spawn_status - Check status of a spawned background task.
+36. spawn_status - Check status of a spawned background task.
     Parameters: task_id (string, required)
 TOOLDESC
 }
@@ -450,6 +458,12 @@ ${idx}. ${desc}"
 
   _bridge_tool_desc "suggest_tests" "suggest_tests - Suggest likely test files for one or more changed paths.
    Params: --path <string> --paths <json-array>"
+
+  _bridge_tool_desc "find_symbols" "find_symbols - Find symbol definitions in a file or directory.
+   Params: --path <string> --query <string> --maxItems <number>"
+
+  _bridge_tool_desc "find_references" "find_references - Find references to a symbol across a repo or directory.
+   Params: --symbol <string> --path <string> --maxMatches <number>"
 
   _bridge_tool_desc "termux_notify" "termux_notify - Send a Termux notification or toast.
    Params: --message <string> --title <string> --type <notification|toast>"
@@ -731,6 +745,32 @@ _tools_build_full_spec() {
           "paths": {"type": "array", "items": {"type": "string"}, "description": "One or more changed file paths."}
         },
         "required": []
+      }
+    },
+    {
+      "name": "find_symbols",
+      "description": "Find symbol definitions in a file or directory.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "description": "File or directory to inspect."},
+          "query": {"type": "string", "description": "Optional symbol name substring filter."},
+          "maxItems": {"type": "number", "description": "Maximum number of symbol matches to return."}
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "name": "find_references",
+      "description": "Find references to a symbol across a repo or directory.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {"type": "string", "description": "Symbol or token to search for."},
+          "path": {"type": "string", "description": "Repo, directory, or file path to search from."},
+          "maxMatches": {"type": "number", "description": "Maximum number of matches to return."}
+        },
+        "required": ["symbol"]
       }
     },
     {
@@ -1794,6 +1834,60 @@ tool_suggest_tests() {
   fi
 
   _tool_python_run 'suggest_tests.py' "$input"
+}
+
+# ---- Tool: find_symbols ----
+
+tool_find_symbols() {
+  local input="$1"
+  require_command jq "find_symbols tool requires jq"
+
+  local path query max_items
+  path="$(printf '%s' "$input" | jq -r '.path // empty')"
+  query="$(printf '%s' "$input" | jq -r '.query // empty')"
+  max_items="$(printf '%s' "$input" | jq -r '.maxItems // empty')"
+  max_items="${max_items:-50}"
+
+  if [[ -z "$path" ]]; then
+    printf '{"error": "path parameter is required"}'
+    return 1
+  fi
+
+  if [[ "$path" != /* ]]; then
+    local workspace="${BASHCLAW_TOOL_WORKSPACE:-$(pwd)}"
+    path="${workspace}/${path}"
+  fi
+
+  local payload
+  payload="$(jq -nc --arg p "$path" --arg q "$query" --argjson m "$max_items" '{path:$p, query:$q, maxItems:$m}')"
+  _tool_python_run 'find_symbols.py' "$payload"
+}
+
+# ---- Tool: find_references ----
+
+tool_find_references() {
+  local input="$1"
+  require_command jq "find_references tool requires jq"
+
+  local symbol path max_matches
+  symbol="$(printf '%s' "$input" | jq -r '.symbol // empty')"
+  path="$(printf '%s' "$input" | jq -r '.path // "."')"
+  max_matches="$(printf '%s' "$input" | jq -r '.maxMatches // empty')"
+  max_matches="${max_matches:-50}"
+
+  if [[ -z "$symbol" ]]; then
+    printf '{"error": "symbol parameter is required"}'
+    return 1
+  fi
+
+  if [[ "$path" != /* ]]; then
+    local workspace="${BASHCLAW_TOOL_WORKSPACE:-$(pwd)}"
+    path="${workspace}/${path}"
+  fi
+
+  local payload
+  payload="$(jq -nc --arg s "$symbol" --arg p "$path" --argjson m "$max_matches" '{symbol:$s, path:$p, maxMatches:$m}')"
+  _tool_python_run 'find_references.py' "$payload"
 }
 
 # ---- Tool: termux_notify ----
