@@ -401,6 +401,25 @@ _cmd_agent_set_model_override reset
 assert_eq "${AGENT_MODEL_OVERRIDE:-}" ""
 teardown_test_env
 
+test_start "_cmd_agent_resolve_model_input expands unique prefix"
+setup_test_env
+result="$(_cmd_agent_resolve_model_input "gpt-4o-m")"
+assert_eq "$result" "gpt-4o-mini"
+teardown_test_env
+
+test_start "_cmd_agent_resolve_model_input shows matches for ambiguous prefix"
+setup_test_env
+stdout_file="${_TEST_TMPDIR}/stdout.txt"
+stderr_file="${_TEST_TMPDIR}/stderr.txt"
+_cmd_agent_resolve_model_input "gpt" >"$stdout_file" 2>"$stderr_file"
+result="$(cat "$stdout_file")"
+status_text="$(cat "$stderr_file")"
+assert_eq "$result" ""
+assert_contains "$status_text" "Model matches:"
+assert_contains "$status_text" "gpt-4o"
+assert_contains "$status_text" "gpt-4o-mini"
+teardown_test_env
+
 test_start "_cmd_agent_prompt_label includes override model"
 setup_test_env
 AGENT_MODEL_OVERRIDE="gpt-4o-mini"

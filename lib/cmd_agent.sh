@@ -98,6 +98,34 @@ _cmd_agent_set_model_override() {
   export AGENT_MODEL_OVERRIDE="$model"
 }
 
+_cmd_agent_resolve_model_input() {
+  local raw="$1"
+  local matches count resolved pretty_matches
+
+  matches="$(_model_complete_prefix "$raw")"
+  count="$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')"
+
+  if [[ "$count" == "0" ]]; then
+    printf '%s' "$raw"
+    return
+  fi
+
+  if [[ "$count" == "1" ]]; then
+    resolved="$(printf '%s\n' "$matches" | sed -n '1p')"
+    printf '%s' "$resolved"
+    return
+  fi
+
+  pretty_matches="$(printf '%s\n' "$matches" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g; s/[[:space:]]$//')"
+  printf '%s----------------------------------------%s\n' \
+    "$(_cmd_agent_color dim)" \
+    "$(_cmd_agent_color reset)" >&2
+  printf '%sModel matches:%s %s\n\n' \
+    "$(_cmd_agent_color yellow)" \
+    "$(_cmd_agent_color reset)" \
+    "$pretty_matches" >&2
+}
+
 _cmd_agent_prompt_label() {
   local model="${AGENT_MODEL_OVERRIDE:-}"
   if [[ -z "$model" ]]; then
@@ -292,21 +320,39 @@ cmd_agent_interactive() {
         ;;
       /model)
         _cmd_agent_print_rule
-        printf '%sCurrent model:%s %s\n\n' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)" "${AGENT_MODEL_OVERRIDE:-$(agent_resolve_model "$agent_id")}"
+        printf '%sCurrent model:%s %s
+
+'           "$(_cmd_agent_color yellow)"           "$(_cmd_agent_color reset)"           "$(_cmd_agent_current_model "$agent_id")"
+        continue
+        ;;
+      /model\ reset|/model\ clear|/model\ default)
+        _cmd_agent_set_model_override reset
+        _cmd_agent_print_rule
+        printf '%sModel override cleared.%s
+
+'           "$(_cmd_agent_color green)"           "$(_cmd_agent_color reset)"
         continue
         ;;
       /model\ *)
-        local new_model
+        local new_model resolved_model
         new_model="${input#/model }"
         new_model="$(trim "$new_model")"
         if [[ -z "$new_model" ]]; then
           _cmd_agent_print_rule
-          printf '%sUsage:%s /model <model_id>\n\n' "$(_cmd_agent_color red)" "$(_cmd_agent_color reset)"
+          printf '%sUsage:%s /model <model_id>
+
+'             "$(_cmd_agent_color red)"             "$(_cmd_agent_color reset)"
           continue
         fi
-        export AGENT_MODEL_OVERRIDE="$new_model"
+        resolved_model="$(_cmd_agent_resolve_model_input "$new_model")"
+        if [[ -z "$resolved_model" ]]; then
+          continue
+        fi
+        _cmd_agent_set_model_override "$resolved_model"
         _cmd_agent_print_rule
-        printf '%sModel override set:%s %s\n\n' "$(_cmd_agent_color green)" "$(_cmd_agent_color reset)" "$new_model"
+        printf '%sModel override set:%s %s
+
+'           "$(_cmd_agent_color green)"           "$(_cmd_agent_color reset)"           "$resolved_model"
         continue
         ;;
       /quit|/exit|/q)

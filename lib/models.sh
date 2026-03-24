@@ -122,6 +122,26 @@ _model_context_window() {
   fi
 }
 
+_model_list_ids() {
+  local catalog
+  catalog="$(_models_catalog_load)"
+  printf '%s' "$catalog" | jq -r '
+    [.providers[].models[]?.id] | unique[]
+  ' 2>/dev/null
+}
+
+_model_complete_prefix() {
+  local prefix="$1"
+  local catalog
+  catalog="$(_models_catalog_load)"
+
+  printf '%s' "$catalog" | jq -r --arg prefix "$prefix" '
+    [.providers[].models[]?.id]
+    | unique[]
+    | select(startswith($prefix))
+  ' 2>/dev/null
+}
+
 # ---- Model Resolution ----
 
 agent_resolve_model() {
