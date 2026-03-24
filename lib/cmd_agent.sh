@@ -77,12 +77,43 @@ _cmd_agent_print_banner() {
   printf '%schannel%s %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$channel"
   printf '%ssender%s  %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$sender"
   printf '%ssession%s %s messages\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$msg_count"
-  printf '\n'
+  printf '\n' >&2
   printf '%sCommands:%s /reset  /history  /status  /model  /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
 }
 
+_cmd_agent_prompt_label() {
+  local model="${AGENT_MODEL_OVERRIDE:-}"
+  if [[ -z "$model" ]]; then
+    printf 'You'
+    return
+  fi
+
+  printf 'You[%s]' "$model"
+}
+
 _cmd_agent_prompt() {
-  printf '%sYou%s › ' "$(_cmd_agent_color blue)" "$(_cmd_agent_color reset)"
+  printf '%s%s%s › ' "$(_cmd_agent_color blue)" "$(_cmd_agent_prompt_label)" "$(_cmd_agent_color reset)"
+}
+
+_cmd_agent_collect_multiline() {
+  local lines="" line
+
+  while true; do
+    printf '%s...%s ' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" >&2
+    if ! IFS= read -r line; then
+      printf '\n'
+      break
+    fi
+    if [[ "$line" == "/end" ]]; then
+      break
+    fi
+    if [[ -n "$lines" ]]; then
+      lines="${lines}"$'\n'
+    fi
+    lines="${lines}${line}"
+  done
+
+  printf '%s' "$lines"
 }
 
 _cmd_agent_print_rule() {
@@ -219,6 +250,17 @@ cmd_agent_interactive() {
 
     # Handle slash commands
     case "$input" in
+      /paste)
+        _cmd_agent_print_rule
+        printf '%sPaste mode:%s finish with /end on its own line.
+
+' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
+        input="$(_cmd_agent_collect_multiline)"
+        input="$(trim "$input")"
+        if [[ -z "$input" ]]; then
+          continue
+        fi
+        ;;
       /reset)
         session_clear "$sess_file"
         _cmd_agent_print_rule
@@ -284,9 +326,11 @@ Options:
   -h, --help            Show this help
 
 Interactive commands:
+  /paste    Enter multiline mode until /end
   /reset    Clear session history
   /history  Show recent session history
   /status   Show agent status
+  /model    Show current model or use /model <id>
   /quit     Exit interactive mode
 EOF
 }

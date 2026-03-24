@@ -386,6 +386,24 @@ teardown_test_env
 
 # ---- cmd_agent mobile helpers ----
 
+test_start "_cmd_agent_prompt_label includes override model"
+setup_test_env
+AGENT_MODEL_OVERRIDE="gpt-4o-mini"
+result="$(_cmd_agent_prompt_label)"
+assert_eq "$result" "You[gpt-4o-mini]"
+unset AGENT_MODEL_OVERRIDE
+teardown_test_env
+
+test_start "_cmd_agent_collect_multiline joins lines until /end"
+setup_test_env
+result="$(printf 'first line
+second line
+/end
+' | _cmd_agent_collect_multiline)"
+assert_eq "$result" $'first line
+second line'
+teardown_test_env
+
 test_start "_cmd_agent_compact_mode returns true on Termux"
 setup_test_env
 platform_is_termux() { return 0; }
