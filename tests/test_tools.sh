@@ -255,6 +255,7 @@ assert_contains "$names" "termux_camera"
 assert_contains "$names" "termux_open"
 assert_contains "$names" "termux_recipe"
 assert_contains "$names" "code_analyze"
+assert_contains "$names" "suggest_tests"
 teardown_test_env
 
 # ---- tool_execute dispatch ----
@@ -726,6 +727,28 @@ languages="$(printf '%s' "$result" | jq -r '.languages | keys | join(",")')"
 assert_contains "$languages" "python"
 teardown_test_env
 
+# ---- tool_suggest_tests recommends likely test targets ----
+
+test_start "tool_suggest_tests maps lib tools to test_tools"
+setup_test_env
+result="$(tool_suggest_tests "$(jq -nc --arg p "/data/data/com.termux/files/home/BashClaw/lib/tools.sh" '{path:$p}')")"
+assert_json_valid "$result"
+recommended="$(printf '%s' "$result" | jq -r '.results[0].recommended')"
+assert_contains "$recommended" "tests/test_tools.sh"
+existing="$(printf '%s' "$result" | jq -r '[.results[0].candidates[] | select(.exists == true) | .path] | join(",")')"
+assert_contains "$existing" "tests/test_tools.sh"
+teardown_test_env
+
+test_start "tool_suggest_tests handles multiple source paths"
+setup_test_env
+result="$(tool_suggest_tests '{"paths":["/data/data/com.termux/files/home/BashClaw/lib/tools.sh","/data/data/com.termux/files/home/BashClaw/bashclaw"]}')"
+assert_json_valid "$result"
+count="$(printf '%s' "$result" | jq -r '.results | length')"
+assert_eq "$count" "2"
+second="$(printf '%s' "$result" | jq -r '.results[1].recommended')"
+assert_contains "$second" "tests/test_cli.sh"
+teardown_test_env
+
 # ---- tools_resolve_profile returns correct tools ----
 
 test_start "tools_resolve_profile returns correct tools for coding profile"
@@ -736,6 +759,7 @@ assert_contains "$result" "read_file"
 assert_contains "$result" "write_file"
 assert_contains "$result" "memory"
 assert_contains "$result" "code_analyze"
+assert_contains "$result" "suggest_tests"
 teardown_test_env
 
 test_start "tools_resolve_profile returns correct tools for minimal profile"
