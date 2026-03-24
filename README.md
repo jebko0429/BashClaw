@@ -119,6 +119,8 @@ bashclaw agent -i                                    # interactive REPL
 
 The gateway still runs on `http://localhost:18789`, but these commands keep the OpenClaw-style agent focus while leaning into mobile automation (notifications, SMS, clipboard, wifi, battery, camera, intents).
 
+Validation checklist: [TERMUX_VALIDATION_CHECKLIST.md](TERMUX_VALIDATION_CHECKLIST.md)
+
 ## Why BashClaw
 
 ```
