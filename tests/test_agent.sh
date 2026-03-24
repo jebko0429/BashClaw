@@ -235,6 +235,40 @@ assert_contains "$result" "code_analyze"
 assert_contains "$result" "find_symbols"
 assert_contains "$result" "find_references"
 assert_contains "$result" "suggest_tests"
+assert_contains "$result" "Do not call another tool"
+teardown_test_env
+
+test_start "_agent_default_reflection_prompt is stricter for coding profile"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{
+  "agents": {
+    "defaults": {
+      "tools": {"profile": "coding"}
+    },
+    "list": []
+  }
+}
+EOF
+_CONFIG_CACHE=""
+config_load
+result="$(_agent_default_reflection_prompt "main")"
+assert_contains "$result" "enough evidence"
+assert_contains "$result" "Only use another tool"
+teardown_test_env
+
+test_start "_agent_default_reflection_prompt stays generic outside coding profile"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{
+  "agents": {"defaults": {}, "list": []}
+}
+EOF
+_CONFIG_CACHE=""
+config_load
+result="$(_agent_default_reflection_prompt "main")"
+assert_contains "$result" "If the task is complete"
+assert_not_contains "$result" "enough evidence"
 teardown_test_env
 
 # ---- agent_build_messages ----

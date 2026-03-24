@@ -439,7 +439,7 @@ Termux operator mode: Prefer BashClaw's Termux-native tools for local device wor
   if [[ "$is_subagent" != "true" ]] && [[ "$tool_profile" == "coding" ]]; then
     prompt="${prompt}
 
-Coding workflow: Use code_analyze first when you need structure, symbols, imports, or a quick module summary. Use find_symbols when you know the symbol name but need the defining file or line. Use find_references before edits and refactors to see where a symbol is used. Use read_file and file_search for exact snippets and line-level inspection. Before proposing validation steps or finishing code changes, run suggest_tests on the changed files to identify the most likely test targets. Prefer the smallest file set that answers the coding question clearly."
+Coding workflow: Use code_analyze first when you need structure, symbols, imports, or a quick module summary. Use find_symbols when you know the symbol name but need the defining file or line. Use find_references before edits and refactors to see where a symbol is used. Use read_file and file_search for exact snippets and line-level inspection. Before proposing validation steps or finishing code changes, run suggest_tests on the changed files to identify the most likely test targets. Prefer the smallest file set that answers the coding question clearly. Do not call another tool if the current evidence already supports a solid answer. Prefer one discovery step, then move to the exact file or final response."
   fi
 
   # [4] Security guidelines

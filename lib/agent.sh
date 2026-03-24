@@ -229,6 +229,19 @@ agent_run_memory_flush() {
 
 # ---- Usage Tracking ----
 
+_agent_default_reflection_prompt() {
+  local agent_id="${1:-main}"
+  local tool_profile
+  tool_profile="$(config_agent_get_raw "$agent_id" '.tools.profile' 2>/dev/null)"
+
+  if [[ "$tool_profile" == "coding" ]]; then
+    printf '%s' "Analyze the tool result. First decide whether you already have enough evidence to answer. Stop and respond if the request is satisfied or if one precise read, edit, or test command is the only sensible next step. Only use another tool when it removes a concrete uncertainty. Prefer one discovery tool before moving to exact files or a final answer."
+    return
+  fi
+
+  printf '%s' "Analyze the tool result. If the task is complete, provide a final response. If not, decide the next action."
+}
+
 _agent_extract_and_track_usage() {
   local response="$1"
   local agent_id="$2"
@@ -515,7 +528,7 @@ agent_run() {
       local reflection_prompt
       reflection_prompt="$(config_get '.agents.defaults.reflectionPrompt' '')"
       if [[ -z "$reflection_prompt" ]]; then
-        reflection_prompt="Analyze the tool result. If the task is complete, provide a final response. If not, decide the next action."
+        reflection_prompt="$(_agent_default_reflection_prompt "$agent_id")"
       fi
       # Allow disabling reflection via config (set to "false")
       local reflection_disabled
