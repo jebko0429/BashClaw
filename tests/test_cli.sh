@@ -178,4 +178,20 @@ assert_contains "$result" "Termux operator mode enabled"
 profile="$(jq -r '.agents.defaults.tools.profile' "$BASHCLAW_CONFIG")"
 assert_eq "$profile" "termux-operator"
 teardown_test_env
+
+
+# ---- bashclaw skill import/list ----
+
+test_start "bashclaw skill import adapts a ClawHub-style skill"
+setup_test_env
+source_skill="${BASHCLAW_STATE_DIR}/clawhub_skill"
+mkdir -p "$source_skill"
+printf '# Device Helper
+Drive Android host workflows.
+' > "${source_skill}/SKILL.md"
+result="$(bash "$CLI" skill import main "$source_skill" 2>&1)"
+assert_json_valid "$result"
+listed="$(bash "$CLI" skill list main 2>&1)"
+assert_contains "$listed" "Device Helper"
+teardown_test_env
 report_results

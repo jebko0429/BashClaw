@@ -174,4 +174,54 @@ count="$(printf '%s' "$result" | jq 'length')"
 assert_eq "$count" "3"
 teardown_test_env
 
+# ---- skill_import copies a ClawHub-style skill into agent storage ----
+
+test_start "skill_import copies skill content and generates metadata"
+setup_test_env
+_source_libs
+source_skill="${BASHCLAW_STATE_DIR}/source_skill"
+mkdir -p "${source_skill}/scripts"
+printf '# Imported Skill
+Use this to automate code review.
+' > "${source_skill}/SKILL.md"
+printf 'echo helper
+' > "${source_skill}/scripts/helper.sh"
+result="$(skill_import "main" "$source_skill")"
+assert_json_valid "$result"
+imported_dir="$(printf '%s' "$result" | jq -r '.dir')"
+assert_file_exists "${imported_dir}/SKILL.md"
+assert_file_exists "${imported_dir}/scripts/helper.sh"
+meta_desc="$(jq -r '.description' < "${imported_dir}/skill.json")"
+meta_source="$(jq -r '.source' < "${imported_dir}/skill.json")"
+assert_eq "$meta_desc" "Use this to automate code review."
+assert_eq "$meta_source" "clawhub"
+teardown_test_env
+
+# ---- skill_import preserves existing metadata and supports force overwrite ----
+
+test_start "skill_import preserves metadata and force overwrites existing skill"
+setup_test_env
+_source_libs
+source_skill="${BASHCLAW_STATE_DIR}/research_skill"
+mkdir -p "$source_skill"
+printf '# Research
+' > "${source_skill}/SKILL.md"
+cat > "${source_skill}/skill.json" <<'EOF'
+{"description":"Original description","tags":["web","search"]}
+EOF
+skill_import "main" "$source_skill" "research" >/dev/null
+set +e
+skill_import "main" "$source_skill" "research" >/dev/null 2>&1
+rc=$?
+set -e
+assert_ne "$rc" "0"
+result="$(skill_import "main" "$source_skill" "research" "true")"
+assert_json_valid "$result"
+imported_dir="$(printf '%s' "$result" | jq -r '.dir')"
+tag0="$(jq -r '.tags[0]' < "${imported_dir}/skill.json")"
+desc="$(jq -r '.description' < "${imported_dir}/skill.json")"
+assert_eq "$tag0" "web"
+assert_eq "$desc" "Original description"
+teardown_test_env
+
 report_results

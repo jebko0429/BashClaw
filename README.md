@@ -121,6 +121,17 @@ The gateway still runs on `http://localhost:18789`, but these commands keep the 
 
 Validation checklist: [TERMUX_VALIDATION_CHECKLIST.md](TERMUX_VALIDATION_CHECKLIST.md)
 
+## Skill Import
+
+BashClaw can import a ClawHub-style skill directory into an agent's local skill store:
+
+```sh
+bashclaw skill import main /path/to/skill
+bashclaw skill list main
+```
+
+Imported skills are copied into `~/.bashclaw/agents/<agent>/skills/` with generated `skill.json` metadata so they can be injected into prompts like native BashClaw skills.
+
 ## Why BashClaw
 
 ```

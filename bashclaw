@@ -86,6 +86,7 @@ usage() {
   printf '  %-18s %s\n' "boot" "Run or check agent boot sequence"
   printf '  %-18s %s\n' "security (sec)" "Security policy and pairing management"
   printf '  %-18s %s\n' "tool" "Invoke a BashClaw tool directly"
+  printf '  %-18s %s\n' "skill" "List, load, and import local skills"
   printf '  %-18s %s\n' "mcp-serve" "Run as MCP server (stdio)"
   printf '  %-18s %s\n' "watchdog" "Self-healing supervisor for gateway + heartbeats"
   printf '  %-18s %s\n' "daemon" "Manage system service (install, status, logs)"
@@ -1014,6 +1015,9 @@ main() {
       ;;
     tool)
       cmd_tool "$@"
+      ;;
+    skill)
+      cmd_skill "$@"
       ;;
     mcp-serve)
       cmd_mcp_serve
