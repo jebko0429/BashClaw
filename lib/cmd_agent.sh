@@ -77,8 +77,25 @@ _cmd_agent_print_banner() {
   printf '%schannel%s %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$channel"
   printf '%ssender%s  %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$sender"
   printf '%ssession%s %s messages\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$msg_count"
-  printf '\n' >&2
+  printf '\n'
   printf '%sCommands:%s /reset  /history  /status  /model  /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
+}
+
+_cmd_agent_current_model() {
+  local agent_id="${1:-main}"
+  printf '%s' "${AGENT_MODEL_OVERRIDE:-$(agent_resolve_model "$agent_id")}"
+}
+
+_cmd_agent_set_model_override() {
+  local model="$1"
+  case "$model" in
+    reset|clear|default)
+      unset AGENT_MODEL_OVERRIDE
+      return
+      ;;
+  esac
+
+  export AGENT_MODEL_OVERRIDE="$model"
 }
 
 _cmd_agent_prompt_label() {
@@ -101,7 +118,7 @@ _cmd_agent_collect_multiline() {
   while true; do
     printf '%s...%s ' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" >&2
     if ! IFS= read -r line; then
-      printf '\n'
+      printf '\n' >&2
       break
     fi
     if [[ "$line" == "/end" ]]; then
@@ -252,9 +269,7 @@ cmd_agent_interactive() {
     case "$input" in
       /paste)
         _cmd_agent_print_rule
-        printf '%sPaste mode:%s finish with /end on its own line.
-
-' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
+        printf '%sPaste mode:%s finish with /end on its own line.\n\n' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
         input="$(_cmd_agent_collect_multiline)"
         input="$(trim "$input")"
         if [[ -z "$input" ]]; then
@@ -330,7 +345,7 @@ Interactive commands:
   /reset    Clear session history
   /history  Show recent session history
   /status   Show agent status
-  /model    Show current model or use /model <id>
+  /model    Show current model, set /model <id>, reset /model reset
   /quit     Exit interactive mode
 EOF
 }

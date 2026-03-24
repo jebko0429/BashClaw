@@ -386,6 +386,21 @@ teardown_test_env
 
 # ---- cmd_agent mobile helpers ----
 
+test_start "_cmd_agent_current_model uses override first"
+setup_test_env
+AGENT_MODEL_OVERRIDE="gpt-4o-mini"
+result="$(_cmd_agent_current_model "main")"
+assert_eq "$result" "gpt-4o-mini"
+unset AGENT_MODEL_OVERRIDE
+teardown_test_env
+
+test_start "_cmd_agent_set_model_override reset clears override"
+setup_test_env
+AGENT_MODEL_OVERRIDE="gpt-4o-mini"
+_cmd_agent_set_model_override reset
+assert_eq "${AGENT_MODEL_OVERRIDE:-}" ""
+teardown_test_env
+
 test_start "_cmd_agent_prompt_label includes override model"
 setup_test_env
 AGENT_MODEL_OVERRIDE="gpt-4o-mini"
