@@ -433,6 +433,15 @@ ${tool_desc}"
 Termux operator mode: Prefer BashClaw's Termux-native tools for local device work before suggesting manual shell glue. For device state, use termux_battery, termux_wifi, termux_location, termux_telephony, and termux_camera as needed. For common phone workflows, use termux_recipe with the built-in battery, downloads, clipboard, and connectivity recipes. If a required Termux API command is unavailable, say so plainly and offer the closest fallback."
   fi
 
+  # [3.6] Coding profile guidance
+  local tool_profile
+  tool_profile="$(config_agent_get_raw "$agent_id" '.tools.profile' 2>/dev/null)"
+  if [[ "$is_subagent" != "true" ]] && [[ "$tool_profile" == "coding" ]]; then
+    prompt="${prompt}
+
+Coding workflow: Use code_analyze first when you need structure, symbols, imports, or a quick module summary. Use read_file and file_search for exact snippets and line-level inspection. Before proposing validation steps or finishing code changes, run suggest_tests on the changed files to identify the most likely test targets. Prefer the smallest file set that answers the coding question clearly."
+  fi
+
   # [4] Security guidelines
   prompt="${prompt}
 

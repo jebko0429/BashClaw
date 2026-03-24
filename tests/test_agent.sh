@@ -215,6 +215,26 @@ result="$(agent_build_system_prompt "main")"
 assert_contains "$result" "haiku format"
 teardown_test_env
 
+test_start "agent_build_system_prompt includes coding workflow guidance for coding profile"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{
+  "agents": {
+    "defaults": {
+      "tools": {"profile": "coding"}
+    },
+    "list": []
+  }
+}
+EOF
+_CONFIG_CACHE=""
+config_load
+result="$(agent_build_system_prompt "main")"
+assert_contains "$result" "Coding workflow"
+assert_contains "$result" "code_analyze"
+assert_contains "$result" "suggest_tests"
+teardown_test_env
+
 # ---- agent_build_messages ----
 
 test_start "agent_build_messages produces correct message array"
