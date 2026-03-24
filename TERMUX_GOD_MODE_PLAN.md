@@ -62,6 +62,7 @@ Expose first-class tools around:
 - `termux-battery-status`
 - `termux-wifi-connectioninfo`
 - `termux-telephony-deviceinfo`
+- `termux-sms-send`
 - `termux-camera-photo`
 
 ### UX Gaps

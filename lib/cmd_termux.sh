@@ -274,7 +274,7 @@ cmd_termux_doctor() {
   fi
 
   printf '\n  --- Termux API Commands ---\n'
-  local api_cmds="termux-notification termux-toast termux-open termux-share termux-clipboard-get termux-clipboard-set termux-battery-status termux-wifi-connectioninfo termux-location termux-telephony-deviceinfo termux-camera-photo"
+  local api_cmds="termux-notification termux-toast termux-open termux-share termux-clipboard-get termux-clipboard-set termux-battery-status termux-wifi-connectioninfo termux-location termux-telephony-deviceinfo termux-camera-photo termux-sms-send"
   for cmd in $api_cmds; do
     if platform_termux_api_available "$cmd"; then
       printf '[OK]   %s\n' "$cmd"

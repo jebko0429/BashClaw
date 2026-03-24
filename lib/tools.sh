@@ -24,7 +24,7 @@ tools_resolve_profile() {
       echo "web_fetch web_search memory session_status message agent_message agents_list"
       ;;
     termux-operator)
-      echo "memory read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe"
+      echo "memory read_file write_file list_files file_search termux_notify termux_clipboard termux_sms termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe"
       ;;
     full|"")
       _tool_list
@@ -55,6 +55,7 @@ _tool_handler() {
     file_search)    echo "tool_file_search" ;;
     termux_notify)  echo "tool_termux_notify" ;;
     termux_clipboard) echo "tool_termux_clipboard" ;;
+    termux_sms)    echo "tool_termux_sms" ;;
     termux_battery) echo "tool_termux_battery" ;;
     termux_wifi)    echo "tool_termux_wifi" ;;
     termux_location) echo "tool_termux_location" ;;
@@ -82,7 +83,7 @@ _tool_handler() {
 }
 
 _tool_list() {
-  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe spawn spawn_status"
+  echo "web_fetch web_search shell memory cron message agents_list session_status sessions_list agent_message read_file write_file list_files file_search termux_notify termux_clipboard termux_sms termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe spawn spawn_status"
 }
 
 # Tool optional flag registry (tools that default to disabled unless explicitly allowed).
@@ -334,49 +335,53 @@ Available tools:
 16. termux_clipboard - Read from or write to the Termux clipboard.
     Parameters: action (get|set, required), text (string)
 
-17. termux_battery - Read battery status from Termux API.
+17. termux_sms - Send an SMS via Termux API.
+    Parameters: to (string, required), message (string, required)
+
+18. termux_battery - Read battery status from Termux API.
     Parameters: none
 
-18. termux_wifi - Read wifi connection details from Termux API.
+19. termux_wifi - Read wifi connection details from Termux API.
     Parameters: none
 
-19. termux_location - Read location details from Termux API.
+20. termux_location - Read location details from Termux API.
     Parameters: provider (gps|network|passive, optional), request (once|last, optional)
 
-20. termux_telephony - Read telephony and carrier details from Termux API.
+21. termux_telephony - Read telephony and carrier details from Termux API.
     Parameters: none
 
-21. termux_camera - Capture a photo with Termux API.
+22. termux_camera - Capture a photo with Termux API.
     Parameters: path (string, optional), cameraId (number, optional)
 
-22. termux_open - Open or share a URL, file, or text through Android intents.
+23. termux_open - Open or share a URL, file, or text through Android intents.
     Parameters: target (string, required), action (open|share, optional)
 
-22. termux_sensor - Read device sensors (accelerometer, gyroscope, light, etc.).
+24. termux_sensor - Read device sensors (accelerometer, gyroscope, light, etc.).
    Parameters: sensor (string, optional), delay (number, optional)
 
-23. termux_brightness - Get or set screen brightness.
+25. termux_brightness - Get or set screen brightness.
    Parameters: brightness (number 0-255 or "auto", optional)
 
-24. termux_volume - Get or set media volume.
+26. termux_volume - Get or set media volume.
    Parameters: stream (string, optional), volume (number, optional)
 
-25. termux_torch - Control device flashlight.
+27. termux_torch - Control device flashlight.
    Parameters: state (on|off|toggle, optional)
 
-26. termux_vibrate - Trigger device vibration.
+28. termux_vibrate - Trigger device vibration.
    Parameters: duration (number, optional), force (boolean, optional)
 
-27. termux_wakelock - Control device wake lock.
+29. termux_wakelock - Control device wake lock.
    Parameters: action (acquire|release|status, optional)
-23. termux_recipe - Run or inspect a built-in Termux workflow recipe.
+30. termux_recipe - Run or inspect a built-in Termux workflow recipe.
     Parameters: action (list|describe|run, optional), recipe (battery|downloads|clipboard|connectivity, optional), limit (number, optional), notify (boolean, optional)
 
-24. spawn - Spawn a background subagent for long-running tasks.
+31. spawn - Spawn a background subagent for long-running tasks.
     Parameters: task (string, required), label (string, optional)
 
-25. spawn_status - Check status of a spawned background task.
+32. spawn_status - Check status of a spawned background task.
     Parameters: task_id (string, required)
+Parameters: task_id (string, required)
 TOOLDESC
 }
 
@@ -438,6 +443,9 @@ ${idx}. ${desc}"
 
   _bridge_tool_desc "termux_clipboard" "termux_clipboard - Read or write the Termux clipboard.
    Params: --action <get|set> --text <string>"
+
+  _bridge_tool_desc "termux_sms" "termux_sms - Send an SMS via Termux API.
+   Params: --to <string> --message <string>"
 
   _bridge_tool_desc "termux_battery" "termux_battery - Read battery status from Termux API.
    Params: none"
@@ -710,6 +718,18 @@ _tools_build_full_spec() {
           "text": {"type": "string", "description": "Clipboard text to write for set action."}
         },
         "required": ["action"]
+      }
+    },
+    {
+      "name": "termux_sms",
+      "description": "Send an SMS using the Termux SMS API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "to": {"type": "string", "description": "Destination phone number."},
+          "message": {"type": "string", "description": "Message body to send."}
+        },
+        "required": ["to", "message"]
       }
     },
     {
@@ -1710,6 +1730,34 @@ tool_termux_clipboard() {
       return 1
       ;;
   esac
+}
+
+# ---- Tool: termux_sms ----
+
+tool_termux_sms() {
+  local input="$1"
+  require_command jq "termux_sms tool requires jq"
+
+  local to message
+  to="$(printf '%s' "$input" | jq -r '.to // empty')"
+  message="$(printf '%s' "$input" | jq -r '.message // empty')"
+
+  if [[ -z "$to" || -z "$message" ]]; then
+    printf '{"error": "to and message parameters are required"}'
+    return 1
+  fi
+
+  if ! platform_termux_api_available termux-sms-send; then
+    printf '{"error": "termux-sms-send not available"}'
+    return 1
+  fi
+
+  termux-sms-send -n "$to" "$message" >/dev/null 2>&1 || {
+    printf '{"error": "termux-sms-send failed"}'
+    return 1
+  }
+
+  jq -nc --arg to "$to" --arg msg "$message" '{"ok": true, "to": $to, "message": $msg}'
 }
 
 # ---- Tool: termux_battery ----

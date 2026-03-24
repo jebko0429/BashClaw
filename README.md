@@ -106,6 +106,19 @@ bashclaw agent -m "What is the mass of the sun?"   # one-shot
 bashclaw agent -i                                    # interactive REPL
 ```
 
+## Mobile Automation on Android (Termux)
+
+1. Install Termux + Termux:API: `pkg install termux-api jq curl`
+2. Initialize mobile defaults: `bashclaw termux enable --setup-storage --install-boot --notify`
+3. Switch to the mobile-friendly tool profile: `bashclaw termux operator enable`
+4. Try common mobile flows:
+   - `bashclaw agent -m "Send a toast saying 'BashClaw is live' via termux_notify"`
+   - `bashclaw termux recipes clipboard run` (append clipboard text to a log)
+   - `bashclaw agent -m "Text +15551234567 that I arrived using termux_sms"`
+   - `bashclaw termux recipes daily_digest run` (battery + connectivity + clipboard preview)
+
+The gateway still runs on `http://localhost:18789`, but these commands keep the OpenClaw-style agent focus while leaning into mobile automation (notifications, SMS, clipboard, wifi, battery, camera, intents).
+
 ## Why BashClaw
 
 ```
