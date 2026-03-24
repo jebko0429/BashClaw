@@ -234,12 +234,12 @@ BashClaw should feel like the "brain of Termux" when:
 
 ## Immediate Next Step
 
-Build the first Termux-native slice:
+Validate and harden the Termux operator mode on real devices:
 
-1. add environment detection
-2. add `bashclaw termux doctor`
-3. add Termux tools for notification, clipboard, battery, and open/share
-4. make paths and temp handling fully Termux-native
+1. run end-to-end checks on fresh Termux installs and existing power-user setups
+2. verify boot, watchdog, notification, and storage flows across app restarts and idle periods
+3. expand regression coverage for operator recipes and mobile dashboard actions
+4. tighten install and upgrade docs around Termux:API, Termux:Boot, and shared storage permissions
 
 ### Phase 6: Operator Recipes and Controls [x]
 

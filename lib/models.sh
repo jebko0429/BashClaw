@@ -178,11 +178,6 @@ agent_resolve_provider() {
     return
   fi
 
-  if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
-    printf 'openrouter'
-    return
-  fi
-
   printf 'anthropic'
 }
 
