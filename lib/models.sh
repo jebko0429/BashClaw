@@ -127,6 +127,11 @@ _model_context_window() {
 agent_resolve_model() {
   local agent_id="${1:-main}"
 
+  if [[ -n "${AGENT_MODEL_OVERRIDE:-}" ]]; then
+    printf '%s' "$AGENT_MODEL_OVERRIDE"
+    return
+  fi
+
   local model
   model="$(config_agent_get "$agent_id" "model" "")"
   if [[ -z "$model" ]]; then

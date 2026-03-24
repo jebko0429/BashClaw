@@ -239,3 +239,11 @@ Build the first Termux-native slice:
 2. add `bashclaw termux doctor`
 3. add Termux tools for notification, clipboard, battery, and open/share
 4. make paths and temp handling fully Termux-native
+
+### Phase 6: Operator Recipes and Controls [ ]
+
+- add device-control tools for sensors, torch, brightness, volume, vibration, and wakelock
+- expand built-in phone recipes (alerts, quiet mode, daily digest, connectivity watchdog)
+- add dashboard mobile widgets for quick device-state actions
+- tighten .env and secret handling for mobile operator mode
+- add CLI/mobile flows to toggle operator mode and recipes

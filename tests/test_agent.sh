@@ -50,6 +50,16 @@ result="$(agent_resolve_model "research")"
 assert_eq "$result" "claude-opus-4-6"
 teardown_test_env
 
+test_start "agent_resolve_model uses AGENT_MODEL_OVERRIDE"
+setup_test_env
+AGENT_MODEL_OVERRIDE="override-model"
+_CONFIG_CACHE=""
+config_load
+result="$(agent_resolve_model "main")"
+assert_eq "$result" "override-model"
+unset AGENT_MODEL_OVERRIDE
+teardown_test_env
+
 test_start "agent_resolve_model uses MODEL_ID env"
 setup_test_env
 cat > "$BASHCLAW_CONFIG" <<'EOF'

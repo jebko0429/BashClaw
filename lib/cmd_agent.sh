@@ -67,7 +67,7 @@ _cmd_agent_print_banner() {
       "$model" \
       "$provider" \
       "$msg_count"
-    printf '%sCommands:%s /reset /history /status /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
+    printf '%sCommands:%s /reset /history /status /model /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
     return
   fi
 
@@ -78,7 +78,7 @@ _cmd_agent_print_banner() {
   printf '%ssender%s  %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$sender"
   printf '%ssession%s %s messages\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$msg_count"
   printf '\n'
-  printf '%sCommands:%s /reset  /history  /status  /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
+  printf '%sCommands:%s /reset  /history  /status  /model  /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
 }
 
 _cmd_agent_prompt() {
@@ -231,6 +231,25 @@ cmd_agent_interactive() {
         ;;
       /status)
         _cmd_agent_print_status "$agent_id" "$channel" "$sender"
+        continue
+        ;;
+      /model)
+        _cmd_agent_print_rule
+        printf '%sCurrent model:%s %s\n\n' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)" "${AGENT_MODEL_OVERRIDE:-$(agent_resolve_model "$agent_id")}"
+        continue
+        ;;
+      /model\ *)
+        local new_model
+        new_model="${input#/model }"
+        new_model="$(trim "$new_model")"
+        if [[ -z "$new_model" ]]; then
+          _cmd_agent_print_rule
+          printf '%sUsage:%s /model <model_id>\n\n' "$(_cmd_agent_color red)" "$(_cmd_agent_color reset)"
+          continue
+        fi
+        export AGENT_MODEL_OVERRIDE="$new_model"
+        _cmd_agent_print_rule
+        printf '%sModel override set:%s %s\n\n' "$(_cmd_agent_color green)" "$(_cmd_agent_color reset)" "$new_model"
         continue
         ;;
       /quit|/exit|/q)
