@@ -253,7 +253,7 @@ handle_request() {
 
   # Auth check (exempt health, status, UI, root)
   case "$HTTP_PATH" in
-    /health|/healthz|/status|/api/status|/ui|/ui/*|/)
+    /health|/healthz|/status|/api/status|/api/logs|/ui|/ui/*|/)
       ;;
     *)
       local auth_rc=0
@@ -353,6 +353,11 @@ handle_request() {
       ;;
     GET:/v1/models)
       _handle_openai_models
+      ;;
+
+    # REST API: logs
+    GET:/api/logs)
+      _handle_api_logs
       ;;
 
     # REST API: Cron run history
@@ -1008,6 +1013,73 @@ _handle_openai_models() {
   }')"
 
   _http_respond_json 200 "$result"
+}
+
+# ---- REST API: Logs ----
+
+_handle_api_logs() {
+  require_command jq "logs API requires jq"
+
+  # Parse count from query string (default 200)
+  local count=200
+  if [[ -n "$HTTP_QUERY" ]]; then
+    local q_count
+    q_count="$(printf '%s' "$HTTP_QUERY" | tr '&' '\n' | sed -n 's/^count=//p')"
+    if [[ -n "$q_count" && "$q_count" =~ ^[0-9]+$ ]]; then
+      count="$q_count"
+    fi
+  fi
+
+  local log_file="${LOG_FILE:-${BASHCLAW_STATE_DIR}/logs/gateway.log}"
+
+  if [[ ! -f "$log_file" ]]; then
+    _http_respond_json 200 '{"entries":[],"count":0,"log_file":"'$log_file'","available":false}'
+    return
+  fi
+
+  # Read last N lines and parse into JSON array
+  local raw_lines
+  raw_lines="$(tail -n "$count" "$log_file" 2>/dev/null)"
+
+  local entries_json="["
+  local first=true
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+
+    # Parse format: [TIMESTAMP] LEVEL: message
+    local ts="" level="" text=""
+    if [[ "$line" =~ ^\[([^]]+)\]\ ([A-Z]+):\ (.*)$ ]]; then
+      ts="${BASH_REMATCH[1]}"
+      level="${BASH_REMATCH[2]}"
+      text="${BASH_REMATCH[3]}"
+    else
+      ts=""
+      level="INFO"
+      text="$line"
+    fi
+
+    local entry
+    entry="$(jq -nc --arg ts "$ts" --arg level "$level" --arg text "$text" \
+      '{ts: $ts, level: $level, text: $text}')"
+
+    if [[ "$first" == "true" ]]; then
+      entries_json="${entries_json}${entry}"
+      first=false
+    else
+      entries_json="${entries_json},${entry}"
+    fi
+  done <<< "$raw_lines"
+
+  entries_json="${entries_json}]"
+
+  local total
+  total="$(printf '%s' "$entries_json" | jq 'length' 2>/dev/null)" || total=0
+
+  _http_respond_json 200 "$(jq -nc \
+    --argjson entries "$entries_json" \
+    --argjson count "$total" \
+    --arg log_file "$log_file" \
+    '{entries: $entries, count: $count, log_file: $log_file, available: true}')"
 }
 
 # ---- REST API: Cron Run History ----

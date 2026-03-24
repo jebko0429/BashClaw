@@ -22,13 +22,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash /home/runner/workspace/bashclaw gateway -p 5000"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "LOG_FILE=$HOME/.bashclaw/logs/gateway.log bash /home/runner/workspace/bashclaw gateway -p 5000"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000

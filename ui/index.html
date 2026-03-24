@@ -797,6 +797,71 @@ html, body {
   flex-shrink: 0;
 }
 .conn-indicator.disconnected { background: var(--error); }
+
+/* ---- No-key Warning Banner ---- */
+.no-key-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--warn-dim);
+  border-bottom: 1px solid var(--warn);
+  color: var(--warn);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.no-key-banner.hidden { display: none; }
+.no-key-banner strong { font-weight: 600; }
+.no-key-banner .btn-setup {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font);
+  white-space: nowrap;
+}
+.no-key-banner .btn-setup:hover { background: var(--warn-dim); }
+
+/* ---- Security Warning Banner ---- */
+.security-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--warn-dim);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  color: var(--warn);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.security-banner.hidden { display: none; }
+
+/* ---- Log file path display ---- */
+.log-file-path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0 8px 0;
+}
+.log-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  margin-right: 4px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
 </style>
 </head>
 <body>
@@ -828,9 +893,15 @@ html, body {
   <!-- Chat Panel -->
   <main id="panel-chat" class="panel active">
     <div class="chat-layout">
+      <div id="no-key-banner" class="no-key-banner hidden">
+        <strong>No API key configured.</strong> Add an API key to start chatting.
+        <button class="btn-setup" id="no-key-setup-btn">Add API Key</button>
+      </div>
       <div class="chat-toolbar">
         <label for="chat-agent">Agent:</label>
         <select id="chat-agent"><option value="main">main</option></select>
+        <label for="chat-model">Model:</label>
+        <select id="chat-model"><option value="">default</option></select>
         <label for="chat-session">Session:</label>
         <select id="chat-session"><option value="">default</option></select>
       </div>
@@ -911,6 +982,9 @@ html, body {
   <!-- Config Panel -->
   <main id="panel-config" class="panel">
     <div class="container">
+      <div id="security-banner" class="security-banner hidden">
+        &#9888; Gateway has no authentication token set. Anyone who can reach this URL can use the API. Set <code>gateway.auth.token</code> in your config to enable auth.
+      </div>
       <div class="section">
         <div class="section-header">
           <h2>Configuration (read-only)</h2>
@@ -937,13 +1011,14 @@ html, body {
             <button class="filter-btn level-debug" data-level="debug">Debug</button>
             <div class="logs-toggle">
               <input type="checkbox" id="logs-auto-refresh">
-              <label for="logs-auto-refresh">Auto-refresh</label>
+              <label for="logs-auto-refresh">Live</label>
             </div>
           </div>
         </div>
         <div class="section-body">
+          <div class="log-file-path" id="log-file-path"></div>
           <div class="log-entries" id="log-entries">
-            <div class="empty-state">No log entries available. Logs are read from the gateway log file when available.</div>
+            <div class="empty-state">Loading logs...</div>
           </div>
         </div>
       </div>
@@ -976,8 +1051,12 @@ html, body {
     },
     theme: localStorage.getItem('bashclaw-theme') || 'auto',
     connected: false,
-    startTime: Date.now()
+    startTime: Date.now(),
+    hasApiKey: null,
+    envStatus: []
   };
+
+  var CHAT_HISTORY_KEY = 'bashclaw-chat-history';
 
   // ---- API Helper ----
   var API = {
@@ -1018,15 +1097,18 @@ html, body {
     getModels: function() { return API.request('GET', '/api/models', null, 5000); },
     getSessions: function() { return API.request('GET', '/api/sessions', null, 5000); },
     getChannels: function() { return API.request('GET', '/api/channels', null, 5000); },
+    getEnv: function() { return API.request('GET', '/api/env', null, 5000); },
+    getLogs: function(count) { return API.request('GET', '/api/logs?count=' + (count || 200), null, 8000); },
     health: function() { return API.request('GET', '/health', null, 3000); },
 
-    chat: function(message, agent, session) {
+    chat: function(message, agent, session, model) {
       return API.request('POST', '/api/chat', {
         message: message,
         agent: agent || 'main',
         session: session || '',
         channel: 'web',
-        sender: 'dashboard'
+        sender: 'dashboard',
+        model: model || undefined
       }, 120000);
     },
 
@@ -1213,6 +1295,30 @@ html, body {
     );
   }
 
+  // ---- Chat History Persistence ----
+  function saveChatHistory() {
+    try {
+      var toSave = state.messages.slice(-100);
+      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(toSave));
+    } catch (e) {}
+  }
+
+  function restoreChatHistory() {
+    try {
+      var raw = localStorage.getItem(CHAT_HISTORY_KEY);
+      if (!raw) return;
+      var msgs = JSON.parse(raw);
+      if (!Array.isArray(msgs) || msgs.length === 0) return;
+      msgs.forEach(function(m) {
+        if (m.role && m.content) {
+          addChatMessage(m.role, m.content);
+          state.messages.push(m);
+        }
+      });
+      addChatMessage('system', 'Previous session restored (' + msgs.length + ' messages)');
+    } catch (e) {}
+  }
+
   // ---- Chat ----
   function addChatMessage(role, text) {
     var container = $('#chat-messages');
@@ -1238,15 +1344,33 @@ html, body {
     if (msgEl && msgEl.parentNode) msgEl.parentNode.removeChild(msgEl);
   }
 
+  function friendlyError(err) {
+    if (!err) return 'Request failed';
+    var msg = err.error || err.message || '';
+    if (!msg && typeof err === 'string') msg = err;
+    if (!msg) return 'Request failed';
+    if (msg.toLowerCase().indexOf('no model') !== -1 || msg.toLowerCase().indexOf('no provider') !== -1 ||
+        msg.toLowerCase().indexOf('api key') !== -1 || msg.toLowerCase().indexOf('unauthorized') !== -1) {
+      return msg + ' — Add an API key in the Config > API Keys section.';
+    }
+    if (msg.toLowerCase().indexOf('empty response') !== -1) {
+      return 'Agent returned an empty response. Check that your API key is valid and has credits.';
+    }
+    return msg;
+  }
+
   function sendChat() {
     var input = $('#chat-input');
     var text = input.value.trim();
     if (!text || state.chatBusy) return;
 
     var agent = $('#chat-agent').value;
+    var modelSel = $('#chat-model');
+    var model = modelSel ? modelSel.value : '';
 
     addChatMessage('user', text);
     state.messages.push({ role: 'user', content: text });
+    saveChatHistory();
 
     input.value = '';
     input.style.height = 'auto';
@@ -1256,19 +1380,19 @@ html, body {
     setChatStatus('Thinking...');
     var thinkingMsg = addChatMessage('thinking', '');
 
-    API.chat(text, agent)
+    API.chat(text, agent, '', model)
       .then(function(data) {
         removeChatMessage(thinkingMsg);
         if (data.response) {
           addChatMessage('assistant', data.response);
           state.messages.push({ role: 'assistant', content: data.response });
+          saveChatHistory();
         }
         setChatStatus('');
       })
       .catch(function(err) {
         removeChatMessage(thinkingMsg);
-        var errMsg = (err && err.error) || (err && err.message) || 'Request failed';
-        addChatMessage('system', 'Error: ' + errMsg);
+        addChatMessage('system', 'Error: ' + friendlyError(err));
         setChatStatus('');
       })
       .finally(function() {
@@ -1283,6 +1407,7 @@ html, body {
       .then(function() {
         $('#chat-messages').innerHTML = '';
         state.messages = [];
+        try { localStorage.removeItem(CHAT_HISTORY_KEY); } catch(e) {}
         addChatMessage('system', 'Session cleared');
       })
       .catch(function(err) {
@@ -1620,54 +1745,37 @@ html, body {
     if (pathEl) {
       pathEl.textContent = 'Config file: ~/.bashclaw/bashclaw.json';
     }
+
+    // Show security warning if no auth token is configured
+    var secBanner = $('#security-banner');
+    if (secBanner) {
+      var hasAuth = data && data.gateway && data.gateway.auth && data.gateway.auth.token;
+      secBanner.classList.toggle('hidden', !!hasAuth);
+    }
   }
 
   // ---- Logs Tab ----
   function loadLogs() {
-    // Logs are fetched from the status API since there is no dedicated logs endpoint.
-    // We generate synthetic log entries based on status information.
-    // In a production setup this would read from the actual log file via an API endpoint.
-    API.getStatus()
+    API.getLogs(300)
       .then(function(data) {
-        var entries = generateLogEntries(data);
+        var entries = data.entries || [];
         state.logs = entries;
+
+        var pathEl = $('#log-file-path');
+        if (pathEl) {
+          if (data.available) {
+            pathEl.innerHTML = '<span class="log-live-dot"></span>Live from: ' + escapeHtml(data.log_file || '');
+          } else {
+            pathEl.textContent = 'Log file not yet available: ' + (data.log_file || '');
+          }
+        }
+
         renderLogs(entries);
       })
       .catch(function() {
         var container = $('#log-entries');
-        if (container) container.innerHTML = '<div class="empty-state">Cannot fetch log data</div>';
+        if (container) container.innerHTML = '<div class="empty-state">Cannot fetch logs from gateway</div>';
       });
-
-    if (state.logsAutoRefresh) {
-      startPolling('logs', loadLogs, 3000);
-    }
-  }
-
-  function generateLogEntries(statusData) {
-    var entries = [];
-    var now = new Date();
-
-    if (statusData.status === 'ok') {
-      entries.push({ ts: now.toISOString(), level: 'info', text: 'Gateway status: OK' });
-    } else {
-      entries.push({ ts: now.toISOString(), level: 'error', text: 'Gateway status: ' + (statusData.status || 'unknown') });
-    }
-
-    if (statusData.gateway && statusData.gateway.running) {
-      entries.push({ ts: now.toISOString(), level: 'info', text: 'Gateway process running (PID: ' + (statusData.gateway.pid || '?') + ')' });
-    } else {
-      entries.push({ ts: now.toISOString(), level: 'warn', text: 'Gateway process not detected' });
-    }
-
-    entries.push({ ts: now.toISOString(), level: 'info', text: 'Active sessions: ' + (statusData.sessions || 0) });
-    entries.push({ ts: now.toISOString(), level: 'debug', text: 'Model: ' + (statusData.model || 'unknown') + ', Provider: ' + (statusData.provider || 'unknown') });
-    entries.push({ ts: now.toISOString(), level: 'debug', text: 'Version: ' + (statusData.version || 'unknown') });
-
-    if (statusData.channels && statusData.channels.length > 0) {
-      entries.push({ ts: now.toISOString(), level: 'info', text: 'Channels configured: ' + statusData.channels.join(', ') });
-    }
-
-    return entries;
   }
 
   function renderLogs(entries) {
@@ -1676,7 +1784,8 @@ html, body {
     container.innerHTML = '';
 
     var filtered = entries.filter(function(e) {
-      return state.logLevels[e.level];
+      var lvl = (e.level || '').toLowerCase();
+      return state.logLevels[lvl];
     });
 
     if (filtered.length === 0) {
@@ -1685,17 +1794,20 @@ html, body {
     }
 
     filtered.forEach(function(entry) {
+      var lvl = (entry.level || 'info').toLowerCase();
       var tsStr = '';
       try {
-        var d = new Date(entry.ts);
-        tsStr = d.toLocaleTimeString();
+        if (entry.ts) {
+          var d = new Date(entry.ts);
+          tsStr = isNaN(d.getTime()) ? entry.ts : d.toLocaleTimeString();
+        }
       } catch(e) {
         tsStr = entry.ts || '';
       }
 
       container.appendChild(el('div', { className: 'log-entry' }, [
         el('span', { className: 'log-ts', textContent: tsStr }),
-        el('span', { className: 'log-level ' + entry.level, textContent: entry.level }),
+        el('span', { className: 'log-level ' + lvl, textContent: lvl.toUpperCase() }),
         el('span', { className: 'log-text', textContent: entry.text })
       ]));
     });
@@ -1798,8 +1910,70 @@ html, body {
       })
       .catch(function() {});
 
+    // Load models for the chat model picker
+    API.getModels()
+      .then(function(data) {
+        state.models = data.models || [];
+        populateModelSelector(state.models);
+      })
+      .catch(function() {});
+
+    // Check API key status and show banner if none set
+    API.getEnv()
+      .then(function(data) {
+        state.envStatus = data.env || [];
+        var mainProviders = state.envStatus.filter(function(e) { return e.provider !== 'search'; });
+        var anySet = mainProviders.some(function(e) { return e.is_set; });
+        state.hasApiKey = anySet;
+        var banner = $('#no-key-banner');
+        if (banner) banner.classList.toggle('hidden', anySet);
+      })
+      .catch(function() {});
+
+    // Wire up "Add API Key" button
+    var noKeyBtn = $('#no-key-setup-btn');
+    if (noKeyBtn) {
+      noKeyBtn.addEventListener('click', function() {
+        var overlay = $('#onboard-overlay');
+        if (overlay) {
+          overlay.classList.remove('hidden');
+        } else {
+          switchTab('config');
+        }
+      });
+    }
+
+    // Restore chat history from localStorage
+    restoreChatHistory();
+
     // Apply initial route
     hashRoute();
+  }
+
+  // ---- Model Selector Population ----
+  function populateModelSelector(models) {
+    var sel = $('#chat-model');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">default</option>';
+
+    var byProvider = {};
+    models.forEach(function(m) {
+      var p = m.provider || 'other';
+      if (!byProvider[p]) byProvider[p] = [];
+      byProvider[p].push(m);
+    });
+
+    Object.keys(byProvider).sort().forEach(function(provider) {
+      var group = document.createElement('optgroup');
+      group.label = provider;
+      byProvider[provider].forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.id;
+        group.appendChild(opt);
+      });
+      sel.appendChild(group);
+    });
   }
 
   // Boot
