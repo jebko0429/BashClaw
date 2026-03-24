@@ -741,6 +741,32 @@ html, body {
   color: var(--error);
   border-color: var(--error);
 }
+.btn-success {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+.btn-success:hover {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
+}
+.config-editor {
+  width: 100%;
+  min-height: 300px;
+  max-height: 70vh;
+  background: var(--bg-input);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+}
 
 .mobile-chat-tip {
   display: none;
@@ -810,6 +836,7 @@ html, body {
   font-size: 13px;
   flex-shrink: 0;
 }
+.hidden { display: none !important; }
 .no-key-banner.hidden { display: none; }
 .no-key-banner strong { font-weight: 600; }
 .no-key-banner .btn-setup {
@@ -987,11 +1014,18 @@ html, body {
       </div>
       <div class="section">
         <div class="section-header">
-          <h2>Configuration (read-only)</h2>
-          <button class="btn btn-sm" id="config-refresh">Refresh</button>
+          <h2>Configuration</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-sm" id="config-refresh">Refresh</button>
+            <button class="btn btn-sm btn-primary" id="config-edit-btn">Edit</button>
+            <button class="btn btn-sm btn-success hidden" id="config-save-btn">Save</button>
+            <button class="btn btn-sm" id="config-cancel-btn" style="display:none">Cancel</button>
+          </div>
         </div>
+        <div id="config-save-msg" class="hidden" style="padding:6px 12px;border-radius:4px;font-size:13px;margin-bottom:8px"></div>
         <div class="section-body">
           <div class="config-json" id="config-json">Loading...</div>
+          <textarea id="config-editor" class="config-editor hidden" spellcheck="false"></textarea>
           <div class="config-path" id="config-path"></div>
         </div>
       </div>
@@ -1099,6 +1133,7 @@ html, body {
     getChannels: function() { return API.request('GET', '/api/channels', null, 5000); },
     getEnv: function() { return API.request('GET', '/api/env', null, 5000); },
     getLogs: function(count) { return API.request('GET', '/api/logs?count=' + (count || 200), null, 8000); },
+    setConfig: function(data) { return API.request('PUT', '/api/config', data, 8000); },
     health: function() { return API.request('GET', '/health', null, 3000); },
 
     chat: function(message, agent, session, model) {
@@ -1754,6 +1789,98 @@ html, body {
     }
   }
 
+  // ---- Config Editing ----
+  var configEditMode = false;
+
+  function enterConfigEditMode() {
+    if (configEditMode) return;
+    configEditMode = true;
+    var display = $('#config-json');
+    var editor = $('#config-editor');
+    var editBtn = $('#config-edit-btn');
+    var saveBtn = $('#config-save-btn');
+    var cancelBtn = $('#config-cancel-btn');
+    var msg = $('#config-save-msg');
+
+    try {
+      var current = JSON.stringify(state.config || {}, null, 2);
+      editor.value = current;
+    } catch (e) {
+      editor.value = '{}';
+    }
+
+    display.classList.add('hidden');
+    editor.classList.remove('hidden');
+    editBtn.classList.add('hidden');
+    saveBtn.classList.remove('hidden');
+    cancelBtn.style.display = '';
+    if (msg) msg.classList.add('hidden');
+    editor.focus();
+  }
+
+  function exitConfigEditMode() {
+    configEditMode = false;
+    var display = $('#config-json');
+    var editor = $('#config-editor');
+    var editBtn = $('#config-edit-btn');
+    var saveBtn = $('#config-save-btn');
+    var cancelBtn = $('#config-cancel-btn');
+
+    editor.classList.add('hidden');
+    display.classList.remove('hidden');
+    editBtn.classList.remove('hidden');
+    saveBtn.classList.add('hidden');
+    cancelBtn.style.display = 'none';
+  }
+
+  function saveConfig() {
+    var editor = $('#config-editor');
+    var msg = $('#config-save-msg');
+    var saveBtn = $('#config-save-btn');
+    var parsed;
+
+    try {
+      parsed = JSON.parse(editor.value);
+    } catch (e) {
+      if (msg) {
+        msg.textContent = 'Invalid JSON: ' + e.message;
+        msg.style.background = 'var(--error-dim)';
+        msg.style.color = 'var(--error)';
+        msg.classList.remove('hidden');
+      }
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
+    API.setConfig(parsed)
+      .then(function(data) {
+        state.config = data.config || data;
+        renderConfig(state.config);
+        exitConfigEditMode();
+        if (msg) {
+          msg.textContent = 'Config saved successfully.';
+          msg.style.background = '#dcfce7';
+          msg.style.color = '#16a34a';
+          msg.classList.remove('hidden');
+          setTimeout(function() { msg.classList.add('hidden'); }, 3000);
+        }
+      })
+      .catch(function(err) {
+        if (msg) {
+          msg.textContent = 'Save failed: ' + ((err && err.error) || 'unknown error');
+          msg.style.background = 'var(--error-dim)';
+          msg.style.color = 'var(--error)';
+          msg.classList.remove('hidden');
+        }
+      })
+      .finally(function() {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      });
+  }
+
   // ---- Logs Tab ----
   function loadLogs() {
     API.getLogs(300)
@@ -1851,7 +1978,17 @@ html, body {
     $('#status-refresh').addEventListener('click', loadStatus);
     $('#agents-refresh').addEventListener('click', loadAgents);
     $('#sessions-refresh').addEventListener('click', loadSessions);
-    $('#config-refresh').addEventListener('click', loadConfig);
+    $('#config-refresh').addEventListener('click', function() {
+      exitConfigEditMode();
+      loadConfig();
+    });
+    $('#config-edit-btn').addEventListener('click', enterConfigEditMode);
+    $('#config-save-btn').addEventListener('click', saveConfig);
+    $('#config-cancel-btn').addEventListener('click', function() {
+      exitConfigEditMode();
+      var msg = $('#config-save-msg');
+      if (msg) msg.classList.add('hidden');
+    });
 
     // Log level filter buttons
     $$('.filter-btn[data-level]').forEach(function(btn) {
