@@ -67,7 +67,7 @@ _cmd_agent_print_banner() {
       "$model" \
       "$provider" \
       "$msg_count"
-    printf '%sCommands:%s /reset /history /status /model /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
+    printf '%sCommands:%s /help /edit /paste /model /set /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
     return
   fi
 
@@ -78,7 +78,7 @@ _cmd_agent_print_banner() {
   printf '%ssender%s  %s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$sender"
   printf '%ssession%s %s messages\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" "$msg_count"
   printf '\n'
-  printf '%sCommands:%s /reset  /history  /status  /model  /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
+  printf '%sCommands:%s /help  /edit  /paste  /model  /set  /quit\n\n' "$(_cmd_agent_color cyan)" "$(_cmd_agent_color reset)"
 }
 
 _cmd_agent_current_model() {
@@ -103,62 +103,294 @@ _cmd_agent_resolve_model_input() {
   local matches count resolved pretty_matches
 
   matches="$(_model_complete_prefix "$raw")"
-  count="$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')"
+  count="$(printf '%s
+' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')"
 
   if [[ "$count" == "0" ]]; then
     printf '%s' "$raw"
-    return
+    return 0
   fi
 
   if [[ "$count" == "1" ]]; then
-    resolved="$(printf '%s\n' "$matches" | sed -n '1p')"
+    resolved="$(printf '%s
+' "$matches" | sed -n '1p')"
     printf '%s' "$resolved"
-    return
+    return 0
   fi
 
-  pretty_matches="$(printf '%s\n' "$matches" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g; s/[[:space:]]$//')"
-  printf '%s----------------------------------------%s\n' \
-    "$(_cmd_agent_color dim)" \
-    "$(_cmd_agent_color reset)" >&2
-  printf '%sModel matches:%s %s\n\n' \
-    "$(_cmd_agent_color yellow)" \
-    "$(_cmd_agent_color reset)" \
-    "$pretty_matches" >&2
+  pretty_matches="$(printf '%s
+' "$matches" | tr '
+' ' ' | sed 's/[[:space:]][[:space:]]*/ /g; s/[[:space:]]$//')"
+  printf '%s----------------------------------------%s
+'     "$(_cmd_agent_color dim)"     "$(_cmd_agent_color reset)" >&2
+  printf '%sModel matches:%s %s
+
+'     "$(_cmd_agent_color yellow)"     "$(_cmd_agent_color reset)"     "$pretty_matches" >&2
+  return 0
+}
+
+_cmd_agent_current_provider() {
+  local agent_id="${1:-main}"
+  local model
+  model="$(_cmd_agent_current_model "$agent_id")"
+  agent_resolve_provider "$model"
+}
+
+_cmd_agent_command_list() {
+  cat <<'EOF'
+/help
+/paste
+/edit
+/reset
+/history
+/status
+/model
+/models
+/set
+/quit
+/exit
+/q
+EOF
+}
+
+_cmd_agent_complete_line() {
+  local line="$1"
+  local prefix matches count resolved pretty_matches
+
+  if [[ "$line" == /model\ * ]]; then
+    prefix="${line#/model }"
+    if [[ -z "$prefix" ]]; then
+      printf '%s' "$line"
+      return 0
+    fi
+    matches="$(_model_complete_prefix "$prefix")"
+  elif [[ "$line" == /* ]]; then
+    matches="$(printf '%s
+' "$(_cmd_agent_command_list)" | awk -v prefix="$line" 'index($0, prefix) == 1')"
+  else
+    printf '%s' "$line"
+    return 0
+  fi
+
+  count="$(printf '%s
+' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')"
+  if [[ "$count" == "0" ]]; then
+    printf '%s' "$line"
+    return 0
+  fi
+
+  if [[ "$count" == "1" ]]; then
+    resolved="$(printf '%s
+' "$matches" | sed -n '1p')"
+    if [[ "$line" == /model\ * ]]; then
+      printf '/model %s' "$resolved"
+    else
+      printf '%s' "$resolved"
+    fi
+    return 0
+  fi
+
+  pretty_matches="$(printf '%s
+' "$matches" | tr '
+' ' ' | sed 's/[[:space:]][[:space:]]*/ /g; s/[[:space:]]$//')"
+  printf '%sCompletion matches:%s %s
+'     "$(_cmd_agent_color yellow)"     "$(_cmd_agent_color reset)"     "$pretty_matches" >&2
+  printf '%s' "$line"
+}
+
+_cmd_agent_readline_complete() {
+  local updated
+  updated="$(_cmd_agent_complete_line "${READLINE_LINE:-}")"
+  READLINE_LINE="$updated"
+  READLINE_POINT="${#READLINE_LINE}"
+}
+
+_cmd_agent_enable_readline_completion() {
+  bind 'set show-all-if-ambiguous on' 2>/dev/null || true
+  bind 'set completion-ignore-case on' 2>/dev/null || true
+  bind -x '"	":_cmd_agent_readline_complete' 2>/dev/null || true
 }
 
 _cmd_agent_prompt_label() {
-  local model="${AGENT_MODEL_OVERRIDE:-}"
-  if [[ -z "$model" ]]; then
-    printf 'You'
-    return
-  fi
-
-  printf 'You[%s]' "$model"
+  local agent_id="${1:-main}"
+  local model provider
+  model="$(_cmd_agent_current_model "$agent_id")"
+  provider="$(_cmd_agent_current_provider "$agent_id")"
+  printf 'You[%s@%s]' "$model" "$provider"
 }
 
 _cmd_agent_prompt() {
-  printf '%s%s%s › ' "$(_cmd_agent_color blue)" "$(_cmd_agent_prompt_label)" "$(_cmd_agent_color reset)"
+  local agent_id="${1:-main}"
+  printf '%s%s%s › ' "$(_cmd_agent_color blue)" "$(_cmd_agent_prompt_label "$agent_id")" "$(_cmd_agent_color reset)"
 }
 
-_cmd_agent_collect_multiline() {
+_cmd_agent_collect_block_input() {
+  local terminator="$1"
   local lines="" line
 
   while true; do
     printf '%s...%s ' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)" >&2
     if ! IFS= read -r line; then
-      printf '\n' >&2
+      printf '
+' >&2
       break
     fi
-    if [[ "$line" == "/end" ]]; then
+    if [[ "$line" == "$terminator" ]]; then
       break
     fi
     if [[ -n "$lines" ]]; then
-      lines="${lines}"$'\n'
+      lines="${lines}"$'
+'
     fi
     lines="${lines}${line}"
   done
 
   printf '%s' "$lines"
+}
+
+_cmd_agent_collect_multiline() {
+  _cmd_agent_collect_block_input '/end'
+}
+
+_cmd_agent_collect_editor_input() {
+  local editor="${VISUAL:-${EDITOR:-}}"
+  local tmp_file content
+
+  if [[ -z "$editor" ]]; then
+    printf '%sNo editor configured.%s Set EDITOR or VISUAL first.
+
+'       "$(_cmd_agent_color red)"       "$(_cmd_agent_color reset)" >&2
+    return 1
+  fi
+
+  tmp_file="$(mktemp "${TMPDIR:-${BASHCLAW_STATE_DIR}}/bashclaw-agent-edit.XXXXXX")" || return 1
+  cat > "$tmp_file" <<'EOF'
+# Write your message below.
+# Lines starting with # are ignored.
+EOF
+
+  if ! eval "$editor "$tmp_file""; then
+    rm -f "$tmp_file"
+    printf '%sEditor exited without saving input.%s
+
+'       "$(_cmd_agent_color red)"       "$(_cmd_agent_color reset)" >&2
+    return 1
+  fi
+
+  content="$(sed '/^#/d' "$tmp_file")"
+  rm -f "$tmp_file"
+  printf '%s' "$content"
+}
+
+_cmd_agent_print_models() {
+  local prefix="${1:-}"
+  local matches
+
+  if [[ -n "$prefix" ]]; then
+    matches="$(_model_complete_prefix "$prefix")"
+  else
+    matches="$(_model_list_ids)"
+  fi
+
+  _cmd_agent_print_rule
+  printf '%sModels%s
+' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
+  if [[ -z "$matches" ]]; then
+    printf '  [no matches]
+
+'
+    return
+  fi
+  printf '%s
+' "$matches" | sed 's/^/  /'
+  printf '
+'
+}
+
+_cmd_agent_json_string() {
+  jq -Rn --arg value "$1" '$value'
+}
+
+_cmd_agent_apply_setting() {
+  local key="$1"
+  local value="$2"
+  local resolved bool_value
+
+  case "$key" in
+    notify)
+      case "$value" in
+        on|true|1|yes)
+          bool_value='true'
+          ;;
+        off|false|0|no)
+          bool_value='false'
+          ;;
+        *)
+          printf 'notify expects on/off
+' >&2
+          return 1
+          ;;
+      esac
+      config_set '.termux.notifyOnAgentResponse' "$bool_value"
+      config_load >/dev/null 2>&1 || true
+      printf 'notifyOnAgentResponse = %s' "$bool_value"
+      ;;
+    model|agent.model|default.model)
+      resolved="$(_cmd_agent_resolve_model_input "$value")"
+      if [[ -z "$resolved" ]]; then
+        return 1
+      fi
+      config_set '.agents.defaults.model' "$(_cmd_agent_json_string "$resolved")"
+      config_load >/dev/null 2>&1 || true
+      printf 'default model = %s' "$resolved"
+      ;;
+    tools.profile)
+      config_set '.agents.defaults.tools.profile' "$(_cmd_agent_json_string "$value")"
+      config_load >/dev/null 2>&1 || true
+      printf 'tools.profile = %s' "$value"
+      ;;
+    session.maxHistory|session.idleResetMinutes)
+      if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+        printf '%s expects an integer
+' "$key" >&2
+        return 1
+      fi
+      config_set ".${key}" "$value"
+      config_load >/dev/null 2>&1 || true
+      printf '%s = %s' "$key" "$value"
+      ;;
+    *)
+      printf 'unsupported setting: %s
+' "$key" >&2
+      return 1
+      ;;
+  esac
+}
+
+_cmd_agent_print_repl_help() {
+  _cmd_agent_print_rule
+  cat <<'EOF'
+REPL commands:
+  /help                 Show this help
+  /edit                 Open EDITOR or VISUAL for multiline input
+  /paste                Enter multiline mode until /end
+  :::                   Enter block mode until :::
+  /reset                Clear session history
+  /history              Show recent session history
+  /status               Show agent status
+  /model                Show current model override or resolved model
+  /model <id>           Set session model override
+  /model reset          Clear session model override
+  /models [prefix]      List models, optionally filtered by prefix
+  /set notify on|off    Persist notifyOnAgentResponse
+  /set model <id>       Persist default model in config
+  /set tools.profile X  Persist default tool profile
+  /set session.maxHistory N
+  /set session.idleResetMinutes N
+  /quit                 Exit interactive mode
+EOF
+  printf '
+'
 }
 
 _cmd_agent_print_rule() {
@@ -263,22 +495,25 @@ cmd_agent_interactive() {
   local _history_file="${BASHCLAW_STATE_DIR}/history"
   if (echo "" | read -e 2>/dev/null); then
     _use_readline=true
+    _cmd_agent_enable_readline_completion
     if [[ -f "$_history_file" ]]; then
       history -r "$_history_file" 2>/dev/null || true
     fi
   fi
 
   while true; do
-    local input
+    local input response
     if [[ "$_use_readline" == "true" ]]; then
-      if ! IFS= read -e -r -p "$(_cmd_agent_prompt)" input; then
-        printf '\n'
+      if ! IFS= read -e -r -p "$(_cmd_agent_prompt "$agent_id")" input; then
+        printf '
+'
         break
       fi
     else
-      _cmd_agent_prompt
+      _cmd_agent_prompt "$agent_id"
       if ! IFS= read -r input; then
-        printf '\n'
+        printf '
+'
         break
       fi
     fi
@@ -288,17 +523,35 @@ cmd_agent_interactive() {
       continue
     fi
 
-    if [[ "$_use_readline" == "true" ]]; then
-      history -s "$input" 2>/dev/null || true
-      history -a "$_history_file" 2>/dev/null || true
-    fi
-
-    # Handle slash commands
     case "$input" in
+      /help)
+        _cmd_agent_print_repl_help
+        continue
+        ;;
+      :::)
+        _cmd_agent_print_rule
+        printf '%sBlock mode:%s finish with ::: on its own line.
+
+' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
+        input="$(_cmd_agent_collect_block_input ':::')"
+        input="$(trim "$input")"
+        if [[ -z "$input" ]]; then
+          continue
+        fi
+        ;;
       /paste)
         _cmd_agent_print_rule
-        printf '%sPaste mode:%s finish with /end on its own line.\n\n' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
+        printf '%sPaste mode:%s finish with /end on its own line.
+
+' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
         input="$(_cmd_agent_collect_multiline)"
+        input="$(trim "$input")"
+        if [[ -z "$input" ]]; then
+          continue
+        fi
+        ;;
+      /edit)
+        input="$(_cmd_agent_collect_editor_input)" || continue
         input="$(trim "$input")"
         if [[ -z "$input" ]]; then
           continue
@@ -307,7 +560,9 @@ cmd_agent_interactive() {
       /reset)
         session_clear "$sess_file"
         _cmd_agent_print_rule
-        printf '%sSession reset.%s\n\n' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
+        printf '%sSession reset.%s
+
+' "$(_cmd_agent_color yellow)" "$(_cmd_agent_color reset)"
         continue
         ;;
       /history)
@@ -355,18 +610,52 @@ cmd_agent_interactive() {
 '           "$(_cmd_agent_color green)"           "$(_cmd_agent_color reset)"           "$resolved_model"
         continue
         ;;
+      /models)
+        _cmd_agent_print_models
+        continue
+        ;;
+      /models\ *)
+        _cmd_agent_print_models "$(trim "${input#/models }")"
+        continue
+        ;;
+      /set\ *)
+        local set_args set_key set_value set_result
+        set_args="$(trim "${input#/set }")"
+        set_key="${set_args%% *}"
+        set_value="$(trim "${set_args#"$set_key"}")"
+        if [[ -z "$set_key" || -z "$set_value" ]]; then
+          _cmd_agent_print_rule
+          printf '%sUsage:%s /set <key> <value>
+
+'             "$(_cmd_agent_color red)"             "$(_cmd_agent_color reset)"
+          continue
+        fi
+        set_result="$(_cmd_agent_apply_setting "$set_key" "$set_value")" || continue
+        _cmd_agent_print_rule
+        printf '%sSetting updated:%s %s
+
+'           "$(_cmd_agent_color green)"           "$(_cmd_agent_color reset)"           "$set_result"
+        continue
+        ;;
       /quit|/exit|/q)
-        printf '%sGoodbye.%s\n' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)"
+        printf '%sGoodbye.%s
+' "$(_cmd_agent_color dim)" "$(_cmd_agent_color reset)"
         break
         ;;
       /*)
         _cmd_agent_print_rule
-        printf '%sUnknown command:%s %s\n\n' "$(_cmd_agent_color red)" "$(_cmd_agent_color reset)" "$input"
+        printf '%sUnknown command:%s %s
+
+' "$(_cmd_agent_color red)" "$(_cmd_agent_color reset)" "$input"
         continue
         ;;
     esac
 
-    local response
+    if [[ "$_use_readline" == "true" ]]; then
+      history -s "$input" 2>/dev/null || true
+      history -a "$_history_file" 2>/dev/null || true
+    fi
+
     response="$(engine_run "$agent_id" "$input" "$channel" "$sender")"
     _cmd_agent_notify_completion "$response"
     _cmd_agent_print_response "$response"
@@ -387,11 +676,16 @@ Options:
   -h, --help            Show this help
 
 Interactive commands:
-  /paste    Enter multiline mode until /end
-  /reset    Clear session history
-  /history  Show recent session history
-  /status   Show agent status
-  /model    Show current model, set /model <id>, reset /model reset
-  /quit     Exit interactive mode
+  /help                 Show REPL command help
+  /edit                 Open EDITOR or VISUAL for multiline input
+  /paste                Enter multiline mode until /end
+  :::                   Enter block mode until :::
+  /reset                Clear session history
+  /history              Show recent session history
+  /status               Show agent status
+  /model                Show current model, set /model <id>, reset /model reset
+  /models [prefix]      List models, optionally filtered by prefix
+  /set <key> <value>    Persist a supported config value
+  /quit                 Exit interactive mode
 EOF
 }

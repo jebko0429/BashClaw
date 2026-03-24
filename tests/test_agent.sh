@@ -424,7 +424,7 @@ test_start "_cmd_agent_prompt_label includes override model"
 setup_test_env
 AGENT_MODEL_OVERRIDE="gpt-4o-mini"
 result="$(_cmd_agent_prompt_label)"
-assert_eq "$result" "You[gpt-4o-mini]"
+assert_eq "$result" "You[gpt-4o-mini@openai]"
 unset AGENT_MODEL_OVERRIDE
 teardown_test_env
 
@@ -490,4 +490,87 @@ assert_contains "$result" "Termux operator mode"
 assert_contains "$result" "termux_recipe"
 teardown_test_env
 
+
+test_start "_cmd_agent_prompt_label includes resolved model and provider"
+setup_test_env
+cat > "$BASHCLAW_CONFIG" <<'EOF'
+{
+  "agents": {
+    "defaults": {"model": "gpt-4o-mini"},
+    "list": []
+  }
+}
+EOF
+_CONFIG_CACHE=""
+config_load
+result="$(_cmd_agent_prompt_label "main")"
+assert_eq "$result" "You[gpt-4o-mini@openai]"
+teardown_test_env
+
+test_start "_cmd_agent_complete_line expands unique slash command"
+setup_test_env
+result="$(_cmd_agent_complete_line "/sta")"
+assert_eq "$result" "/status"
+teardown_test_env
+
+test_start "_cmd_agent_complete_line expands model prefix"
+setup_test_env
+result="$(_cmd_agent_complete_line "/model gpt-4o-m")"
+assert_eq "$result" "/model gpt-4o-mini"
+teardown_test_env
+
+test_start "_cmd_agent_complete_line shows ambiguous slash matches"
+setup_test_env
+stdout_file="${_TEST_TMPDIR}/stdout-complete.txt"
+stderr_file="${_TEST_TMPDIR}/stderr-complete.txt"
+_cmd_agent_complete_line "/mo" >"$stdout_file" 2>"$stderr_file"
+result="$(cat "$stdout_file")"
+status_text="$(cat "$stderr_file")"
+assert_eq "$result" "/mo"
+assert_contains "$status_text" "Completion matches:"
+assert_contains "$status_text" "/model"
+assert_contains "$status_text" "/models"
+teardown_test_env
+
+test_start "_cmd_agent_collect_block_input joins lines until terminator"
+setup_test_env
+result="$(printf 'first
+second
+:::
+' | _cmd_agent_collect_block_input ':::')"
+assert_eq "$result" $'first
+second'
+teardown_test_env
+
+test_start "_cmd_agent_collect_editor_input reads edited content"
+setup_test_env
+editor_script="${_TEST_TMPDIR}/mock-editor.sh"
+cat > "$editor_script" <<'EOF'
+#!/usr/bin/env bash
+printf '# ignored
+from editor
+second line
+' > "$1"
+EOF
+chmod +x "$editor_script"
+EDITOR="$editor_script"
+result="$(_cmd_agent_collect_editor_input)"
+assert_eq "$result" $'from editor
+second line'
+unset EDITOR
+teardown_test_env
+
+test_start "_cmd_agent_apply_setting persists notify"
+setup_test_env
+result="$(_cmd_agent_apply_setting notify on)"
+assert_eq "$result" "notifyOnAgentResponse = true"
+assert_eq "$(config_get '.termux.notifyOnAgentResponse' 'false')" "true"
+teardown_test_env
+
+test_start "_cmd_agent_apply_setting persists default model"
+setup_test_env
+result="$(_cmd_agent_apply_setting model gpt-4o-m)"
+assert_eq "$result" "default model = gpt-4o-mini"
+assert_eq "$(config_get '.agents.defaults.model' '')" "gpt-4o-mini"
+teardown_test_env
 report_results
