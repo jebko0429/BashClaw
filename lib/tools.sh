@@ -24,7 +24,7 @@ tools_resolve_profile() {
       echo "web_fetch web_search memory session_status message agent_message agents_list"
       ;;
     termux-operator)
-      echo "memory read_file write_file list_files file_search termux_notify termux_clipboard termux_sms termux_battery termux_wifi termux_location termux_telephony termux_camera termux_open termux_sensor termux_brightness termux_volume termux_torch termux_vibrate termux_wakelock termux_recipe"
+      _tool_list
       ;;
     full|"")
       _tool_list
